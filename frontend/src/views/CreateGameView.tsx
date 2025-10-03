@@ -1,10 +1,12 @@
 import React from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { useGameState } from '../state/GameStateManager';
+import { useApiClient } from '../services/api';
 
 export const CreateGameView: React.FC = () => {
   const { user } = usePrivy();
   const { state, dispatch } = useGameState();
+  const apiClient = useApiClient();
 
   const userAddress = user?.wallet?.address || (state.type === 'CREATE_GAME' ? state.userAddress : undefined);
 
@@ -16,13 +18,29 @@ export const CreateGameView: React.FC = () => {
     dispatch({ type: 'UPDATE_OPPONENT_ADDRESS', opponentAddress: e.target.value });
   };
 
-  const handleCreateGame = () => {
+  const handleCreateGame = async () => {
     if (state.type === 'CREATE_GAME' && state.isFormValid) {
-      // TODO: Call API to create game
-      console.log('Creating game with:', {
-        wager: state.wagerAmount,
-        opponent: state.opponentAddress || null
-      });
+      try {
+        dispatch({ type: 'SET_LOADING', isLoading: true });
+        dispatch({ type: 'CLEAR_ERROR' });
+        
+        const game = await apiClient.createGame(
+          state.wagerAmount,
+          state.opponentAddress || undefined
+        );
+        
+        console.log('Game created successfully:', game);
+        // TODO: Navigate to game view or show success message
+        
+      } catch (error) {
+        console.error('Failed to create game:', error);
+        dispatch({ 
+          type: 'SET_ERROR', 
+          error: error instanceof Error ? error.message : 'Failed to create game' 
+        });
+      } finally {
+        dispatch({ type: 'SET_LOADING', isLoading: false });
+      }
     }
   };
 

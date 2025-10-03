@@ -1,32 +1,30 @@
 import { Router, Request, Response } from 'express';
 import { GameLobby } from '../services/GameLobby';
 import { CreateGameRequest, JoinGameRequest, GameApiResponse, GamesListApiResponse, serializeGame } from '../types/Game';
+import { authenticateUser, validateAddressOwnership, AuthenticatedRequest } from '../middleware/auth';
 
 const router = Router();
 const gameLobby = GameLobby.getInstance();
 
 // Create a new game
-router.post('/create', (req: Request, res: Response) => {
+router.post('/create', authenticateUser, (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { owner, opponent, wager } = req.body as CreateGameRequest;
+    const { opponent, wagerAmount } = req.body;
+    const owner = req.user!.address; // Get from authenticated user
 
     // Validate required fields
-    if (!owner || !wager) {
+    if (!wagerAmount) {
       const response: GameApiResponse = {
         success: false,
-        error: 'Owner and wager are required'
+        error: 'Wager amount is required'
       };
       return res.status(400).json(response);
     }
 
-    // Validate Ethereum address format (basic check)
-    if (!/^0x[a-fA-F0-9]{40}$/.test(owner)) {
-      const response: GameApiResponse = {
-        success: false,
-        error: 'Invalid owner address format'
-      };
-      return res.status(400).json(response);
-    }
+    // Convert wagerAmount to BigInt (assuming it's in ETH as string)
+    const wager = BigInt(Math.floor(parseFloat(wagerAmount) * 1e18));
+
+    // Owner address is already validated by authentication middleware
 
     // Validate opponent address if provided
     if (opponent && !/^0x[a-fA-F0-9]{40}$/.test(opponent)) {
@@ -37,25 +35,17 @@ router.post('/create', (req: Request, res: Response) => {
       return res.status(400).json(response);
     }
 
-    // Validate wager amount
-    try {
-      const wagerBigInt = BigInt(wager);
-      if (wagerBigInt <= 0) {
-        const response: GameApiResponse = {
-          success: false,
-          error: 'Wager must be greater than 0'
-        };
-        return res.status(400).json(response);
-      }
-    } catch (error) {
+    // Validate wager amount (minimum 0.0001 ETH)
+    const minWager = BigInt(100000000000000); // 0.0001 ETH in wei
+    if (wager < minWager) {
       const response: GameApiResponse = {
         success: false,
-        error: 'Invalid wager amount'
+        error: 'Wager must be at least 0.0001 ETH'
       };
       return res.status(400).json(response);
     }
 
-    const game = gameLobby.createGame({ owner, opponent, wager });
+    const game = gameLobby.createGame({ owner, opponent, wager: wager.toString() });
     
     const response: GameApiResponse = {
       success: true,
@@ -73,24 +63,16 @@ router.post('/create', (req: Request, res: Response) => {
 });
 
 // Join an existing game
-router.post('/join', (req: Request, res: Response) => {
+router.post('/join', authenticateUser, (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { gameId, opponent } = req.body as JoinGameRequest;
+    const { gameId } = req.body;
+    const opponent = req.user!.address; // Get from authenticated user
 
     // Validate required fields
-    if (!gameId || !opponent) {
+    if (!gameId) {
       const response: GameApiResponse = {
         success: false,
-        error: 'Game ID and opponent are required'
-      };
-      return res.status(400).json(response);
-    }
-
-    // Validate opponent address format
-    if (!/^0x[a-fA-F0-9]{40}$/.test(opponent)) {
-      const response: GameApiResponse = {
-        success: false,
-        error: 'Invalid opponent address format'
+        error: 'Game ID is required'
       };
       return res.status(400).json(response);
     }
@@ -121,7 +103,7 @@ router.post('/join', (req: Request, res: Response) => {
 });
 
 // Settle a game
-router.post('/:gameId/settle', (req: Request, res: Response) => {
+router.post('/:gameId/settle', authenticateUser, (req: AuthenticatedRequest, res: Response) => {
   try {
     const { gameId } = req.params;
     const game = gameLobby.settleGame(gameId);
