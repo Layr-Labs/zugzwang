@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { GameLobby } from '../services/GameLobby';
-import { CreateGameRequest, JoinGameRequest, GameApiResponse, GamesListApiResponse, serializeGame } from '../types/Game';
+import { GameApiResponse, GamesListApiResponse, serializeGame } from '../types/Game';
 import { authenticateUser, validateAddressOwnership, AuthenticatedRequest } from '../middleware/auth';
 
 const router = Router();
@@ -45,7 +45,7 @@ router.post('/create', authenticateUser, (req: AuthenticatedRequest, res: Respon
       return res.status(400).json(response);
     }
 
-    const game = gameLobby.createGame({ owner, opponent, wager: wager.toString() });
+    const game = gameLobby.createGame(owner, opponent, wager.toString());
     
     const response: GameApiResponse = {
       success: true,
@@ -77,7 +77,7 @@ router.post('/join', authenticateUser, (req: AuthenticatedRequest, res: Response
       return res.status(400).json(response);
     }
 
-    const game = gameLobby.joinGame({ gameId, opponent });
+    const game = gameLobby.joinGame(gameId, opponent);
     
     if (!game) {
       const response: GameApiResponse = {

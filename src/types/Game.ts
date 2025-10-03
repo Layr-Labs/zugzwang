@@ -27,14 +27,12 @@ export interface GameResponse {
 }
 
 export interface CreateGameRequest {
-  owner: string;
   opponent?: string; // Optional required opponent
-  wager: string; // Wager amount as string (will be converted to BigInt)
+  wagerAmount: string; // Wager amount in ETH as string (will be converted to BigInt wei)
 }
 
 export interface JoinGameRequest {
   gameId: string;
-  opponent: string;
 }
 
 export interface GameApiResponse {

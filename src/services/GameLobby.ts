@@ -1,4 +1,4 @@
-import { Game, GameState, CreateGameRequest, JoinGameRequest } from '../types/Game';
+import { Game, GameState } from '../types/Game';
 import { randomUUID } from 'crypto';
 
 export class GameLobby {
@@ -17,15 +17,15 @@ export class GameLobby {
   /**
    * Create a new game
    */
-  public createGame(request: CreateGameRequest): Game {
+  public createGame(owner: string, opponent: string | null, wager: string): Game {
     const gameId = randomUUID();
-    const wager = BigInt(request.wager);
+    const wagerBigInt = BigInt(wager);
     
     const game: Game = {
       id: gameId,
-      owner: request.owner,
-      opponent: request.opponent || null,
-      wager,
+      owner,
+      opponent,
+      wager: wagerBigInt,
       state: GameState.CREATED,
       createdAt: new Date()
     };
@@ -37,8 +37,8 @@ export class GameLobby {
   /**
    * Join an existing game
    */
-  public joinGame(request: JoinGameRequest): Game | null {
-    const game = this.games.get(request.gameId);
+  public joinGame(gameId: string, opponent: string): Game | null {
+    const game = this.games.get(gameId);
     
     if (!game) {
       return null; // Game not found
@@ -49,12 +49,12 @@ export class GameLobby {
     }
 
     // Check if there's a required opponent
-    if (game.opponent && game.opponent !== request.opponent) {
+    if (game.opponent && game.opponent !== opponent) {
       return null; // Wrong opponent
     }
 
     // Update game state
-    game.opponent = request.opponent;
+    game.opponent = opponent;
     game.state = GameState.STARTED;
     game.startedAt = new Date();
 
