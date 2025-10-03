@@ -5,9 +5,21 @@ import { AuthButton } from '../components/AuthButton';
 
 export const WelcomeView: React.FC = () => {
   const { user } = usePrivy();
-  const { state } = useGameState();
+  const { state, dispatch } = useGameState();
 
   const userAddress = user?.wallet?.address || (state.type === 'MENU' ? state.userAddress : undefined);
+
+  const handleBrowseGames = () => {
+    if (userAddress) {
+      dispatch({ type: 'NAVIGATE_TO_BROWSE_GAMES', userAddress });
+    }
+  };
+
+  const handleCreateGame = () => {
+    if (userAddress) {
+      dispatch({ type: 'NAVIGATE_TO_CREATE_GAME', userAddress });
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -20,6 +32,22 @@ export const WelcomeView: React.FC = () => {
               {userAddress}
             </p>
           )}
+        </div>
+        
+        <div className="space-y-4 mb-6">
+          <button
+            onClick={handleBrowseGames}
+            className="w-full px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
+          >
+            Browse Games
+          </button>
+          
+          <button
+            onClick={handleCreateGame}
+            className="w-full px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+          >
+            Create Game
+          </button>
         </div>
         
         <div className="mb-6">

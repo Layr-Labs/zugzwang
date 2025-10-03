@@ -1,6 +1,8 @@
 export enum GameStateType {
   LOGIN = 'LOGIN',
-  MENU = 'MENU'
+  MENU = 'MENU',
+  BROWSE_GAMES = 'BROWSE_GAMES',
+  CREATE_GAME = 'CREATE_GAME'
 }
 
 export interface LogInState {
@@ -15,7 +17,25 @@ export interface MenuState {
   isLoading: boolean;
 }
 
-export type GameState = LogInState | MenuState;
+export interface BrowseGamesState {
+  type: GameStateType.BROWSE_GAMES;
+  userAddress?: string;
+  isLoading: boolean;
+  games?: any[];
+  error?: string;
+}
+
+export interface CreateGameState {
+  type: GameStateType.CREATE_GAME;
+  userAddress?: string;
+  isLoading: boolean;
+  wagerAmount: string;
+  opponentAddress: string;
+  isFormValid: boolean;
+  error?: string;
+}
+
+export type GameState = LogInState | MenuState | BrowseGamesState | CreateGameState;
 
 export const createLogInState = (isLoading: boolean = false, error?: string): LogInState => ({
   type: GameStateType.LOGIN,
@@ -27,4 +47,22 @@ export const createMenuState = (userAddress?: string, isLoading: boolean = false
   type: GameStateType.MENU,
   userAddress,
   isLoading
+});
+
+export const createBrowseGamesState = (userAddress?: string, isLoading: boolean = false, games?: any[], error?: string): BrowseGamesState => ({
+  type: GameStateType.BROWSE_GAMES,
+  userAddress,
+  isLoading,
+  games,
+  error
+});
+
+export const createCreateGameState = (userAddress?: string, isLoading: boolean = false, wagerAmount: string = '', opponentAddress: string = '', isFormValid: boolean = false, error?: string): CreateGameState => ({
+  type: GameStateType.CREATE_GAME,
+  userAddress,
+  isLoading,
+  wagerAmount,
+  opponentAddress,
+  isFormValid,
+  error
 });

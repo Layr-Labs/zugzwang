@@ -4,6 +4,8 @@ import { useGameState } from './state/GameStateManager';
 import { GameStateType } from './state/GameState';
 import { LandingPage } from './views/LandingPage';
 import { WelcomeView } from './views/WelcomeView';
+import { BrowseGamesView } from './views/BrowseGamesView';
+import { CreateGameView } from './views/CreateGameView';
 
 const App: React.FC = () => {
   const { ready, authenticated } = usePrivy();
@@ -20,9 +22,15 @@ const App: React.FC = () => {
     );
   }
 
-  // Show welcome view if user is authenticated, otherwise show landing page
-  if (authenticated && state.type === GameStateType.MENU) {
-    return <WelcomeView />;
+  // Show appropriate view based on authentication and game state
+  if (authenticated) {
+    if (state.type === GameStateType.MENU) {
+      return <WelcomeView />;
+    } else if (state.type === GameStateType.BROWSE_GAMES) {
+      return <BrowseGamesView />;
+    } else if (state.type === GameStateType.CREATE_GAME) {
+      return <CreateGameView />;
+    }
   }
 
   return <LandingPage />;
