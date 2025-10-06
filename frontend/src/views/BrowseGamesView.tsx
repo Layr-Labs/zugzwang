@@ -1,22 +1,169 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { useGameState } from '../state/GameStateManager';
+import { useApiClient } from '../services/api';
+
+interface Game {
+  id: string;
+  owner: string;
+  opponent: string | null;
+  wager: string;
+  state: 'CREATED' | 'STARTED' | 'SETTLED';
+  createdAt: string;
+  startedAt?: string;
+  settledAt?: string;
+}
+
+interface GameData {
+  openGames: Game[];
+  userGames: Game[];
+  userChallenges: Game[];
+}
 
 export const BrowseGamesView: React.FC = () => {
   const { user } = usePrivy();
   const { state, dispatch } = useGameState();
+  const apiClient = useApiClient();
 
-  const userAddress = user?.wallet?.address || (state.type === 'BROWSE_GAMES' ? state.userAddress : undefined);
+  // Extract wallet address from user's linked accounts
+  const walletAccount = user?.linkedAccounts?.find(
+    (account) => account.type === 'wallet'
+  ) as { address: string; type: 'wallet' } | undefined;
+  const userAddress = walletAccount?.address || (state.type === 'BROWSE_GAMES' ? state.userAddress : undefined);
+  
+  console.log('🔍 BROWSE GAMES DEBUG - User object:', user);
+  console.log('🔍 BROWSE GAMES DEBUG - User wallet address:', user?.wallet?.address);
+  console.log('🔍 BROWSE GAMES DEBUG - User linked accounts:', user?.linkedAccounts);
+  console.log('🔍 BROWSE GAMES DEBUG - State user address:', state.type === 'BROWSE_GAMES' ? state.userAddress : undefined);
+  console.log('🔍 BROWSE GAMES DEBUG - Final user address:', userAddress);
+  
+  const [gameData, setGameData] = useState<GameData>({
+    openGames: [],
+    userGames: [],
+    userChallenges: []
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // TODO: Fetch games from API
-    // For now, we'll just show a placeholder
-  }, []);
+    if (userAddress) {
+      fetchAllGames();
+    }
+  }, [userAddress, apiClient]);
 
   const handleBackToMenu = () => {
     if (userAddress) {
       dispatch({ type: 'NAVIGATE_TO_MENU', userAddress });
     }
+  };
+
+  const handleJoinGame = async (gameId: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await apiClient.joinGame(gameId);
+      
+      if (response.success) {
+        // Refresh games after joining
+        await fetchAllGames();
+      } else {
+        throw new Error(response.error || 'Failed to join game');
+      }
+    } catch (err) {
+      console.error('Failed to join game:', err);
+      setError(err instanceof Error ? err.message : 'Failed to join game');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchAllGames = async () => {
+    if (!userAddress) {
+      console.log('🔍 BROWSE GAMES DEBUG - No user address, skipping fetch');
+      return;
+    }
+    
+    console.log('🔍 BROWSE GAMES DEBUG - Fetching games for user:', userAddress);
+    
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Fetch all game data in parallel
+      console.log('🔍 BROWSE GAMES DEBUG - Starting parallel fetch...');
+      const [openGamesRes, userGamesRes, userChallengesRes] = await Promise.all([
+        apiClient.getOpenGames(),
+        apiClient.getUserGames(userAddress),
+        apiClient.getUserChallenges(userAddress)
+      ]);
+      
+      console.log('🔍 BROWSE GAMES DEBUG - Open games response:', openGamesRes);
+      console.log('🔍 BROWSE GAMES DEBUG - User games response:', userGamesRes);
+      console.log('🔍 BROWSE GAMES DEBUG - User challenges response:', userChallengesRes);
+      
+      const newGameData = {
+        openGames: openGamesRes.data || [],
+        userGames: userGamesRes.data || [],
+        userChallenges: userChallengesRes.data || []
+      };
+      
+      console.log('🔍 BROWSE GAMES DEBUG - Setting game data:', newGameData);
+      setGameData(newGameData);
+    } catch (err) {
+      console.error('🔍 BROWSE GAMES DEBUG - Failed to fetch games:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch games');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRefresh = () => {
+    fetchAllGames();
+  };
+
+  // Helper functions to categorize games - now using the fetched data directly
+  const getOpenGames = () => {
+    const openGames = gameData.openGames.filter(game => 
+      game.state === 'CREATED' && 
+      (!game.opponent || game.opponent.toLowerCase() !== userAddress?.toLowerCase())
+    );
+    console.log('🔍 BROWSE GAMES DEBUG - Open games:', openGames);
+    return openGames;
+  };
+
+  const getYourGames = () => {
+    console.log('🔍 BROWSE GAMES DEBUG - Your games:', gameData.userGames);
+    return gameData.userGames;
+  };
+
+  const getYourChallenges = () => {
+    const challenges = gameData.userChallenges.filter(game => 
+      game.state === 'CREATED' &&
+      game.owner.toLowerCase() !== userAddress?.toLowerCase()
+    );
+    console.log('🔍 BROWSE GAMES DEBUG - Your challenges:', challenges);
+    return challenges;
+  };
+
+  const formatWager = (wager: string) => {
+    try {
+      const wagerBigInt = BigInt(wager);
+      const ethAmount = wagerBigInt / BigInt(1e18);
+      const weiRemainder = wagerBigInt % BigInt(1e18);
+      const decimalPart = weiRemainder.toString().padStart(18, '0').slice(0, 4);
+      return `${ethAmount}.${decimalPart} ETH`;
+    } catch (error) {
+      console.error('Error formatting wager:', error);
+      return 'Invalid wager';
+    }
+  };
+
+  const formatAddress = (address: string) => {
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString();
   };
 
   return (
@@ -25,12 +172,21 @@ export const BrowseGamesView: React.FC = () => {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-4xl font-bold text-gray-900">Browse Games</h1>
-            <button
-              onClick={handleBackToMenu}
-              className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors"
-            >
-              Back to Menu
-            </button>
+            <div className="flex space-x-2">
+              <button
+                onClick={handleRefresh}
+                disabled={loading}
+                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white rounded-lg transition-colors"
+              >
+                {loading ? 'Refreshing...' : 'Refresh'}
+              </button>
+              <button
+                onClick={handleBackToMenu}
+                className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors"
+              >
+                Back to Menu
+              </button>
+            </div>
           </div>
           <p className="text-gray-600">Find games to join or view your active games</p>
           {userAddress && (
@@ -40,23 +196,148 @@ export const BrowseGamesView: React.FC = () => {
           )}
         </div>
         
-        <div className="space-y-4">
-          <div className="bg-gray-100 p-6 rounded-lg text-center">
-            <h3 className="text-lg font-semibold text-gray-700 mb-2">Open Games</h3>
-            <p className="text-gray-500">Games waiting for opponents</p>
-            {/* TODO: Display actual games from API */}
-            <div className="mt-4 text-sm text-gray-400">
-              No open games found
+        {error && (
+          <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
+            <div className="flex justify-between items-center">
+              <span>{error}</span>
+              <button
+                onClick={() => setError(null)}
+                className="text-red-500 hover:text-red-700 font-bold"
+              >
+                ×
+              </button>
             </div>
           </div>
+        )}
+
+        <div className="space-y-6">
+          {/* Open Games */}
+          <div className="bg-gray-100 p-6 rounded-lg">
+            <h3 className="text-lg font-semibold text-gray-700 mb-4">Open Games</h3>
+            <p className="text-gray-500 mb-4">Games waiting for opponents</p>
+            {loading ? (
+              <div className="text-center text-gray-500">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto mb-2"></div>
+                Loading open games...
+              </div>
+            ) : getOpenGames().length === 0 ? (
+              <div className="text-center text-gray-400">No open games found</div>
+            ) : (
+              <div className="space-y-3">
+                {getOpenGames().map((game) => (
+                  <div key={game.id} className="bg-white p-4 rounded border flex justify-between items-center">
+                    <div>
+                      <div className="font-medium">Wager: {formatWager(game.wager)}</div>
+                      <div className="text-sm text-gray-500">
+                        Created by {formatAddress(game.owner)} • {formatDate(game.createdAt)}
+                      </div>
+                      {game.opponent && (
+                        <div className="text-sm text-blue-600">
+                          Invited: {formatAddress(game.opponent)}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => handleJoinGame(game.id)}
+                      disabled={loading}
+                      className={`px-4 py-2 rounded transition-colors ${
+                        loading
+                          ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                          : 'bg-green-500 hover:bg-green-600 text-white'
+                      }`}
+                    >
+                      {loading ? 'Joining...' : 'Join Game'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Your Challenges */}
+          <div className="bg-blue-50 p-6 rounded-lg">
+            <h3 className="text-lg font-semibold text-gray-700 mb-4">Your Challenges</h3>
+            <p className="text-gray-500 mb-4">Games where you're invited as opponent</p>
+            {loading ? (
+              <div className="text-center text-gray-500">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto mb-2"></div>
+                Loading challenges...
+              </div>
+            ) : getYourChallenges().length === 0 ? (
+              <div className="text-center text-gray-400">No challenges found</div>
+            ) : (
+              <div className="space-y-3">
+                {getYourChallenges().map((game) => (
+                  <div key={game.id} className="bg-white p-4 rounded border flex justify-between items-center">
+                    <div>
+                      <div className="font-medium">Wager: {formatWager(game.wager)}</div>
+                      <div className="text-sm text-gray-500">
+                        Challenged by {formatAddress(game.owner)} • {formatDate(game.createdAt)}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleJoinGame(game.id)}
+                      disabled={loading}
+                      className={`px-4 py-2 rounded transition-colors ${
+                        loading
+                          ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                          : 'bg-blue-500 hover:bg-blue-600 text-white'
+                      }`}
+                    >
+                      {loading ? 'Accepting...' : 'Accept Challenge'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           
-          <div className="bg-gray-100 p-6 rounded-lg text-center">
-            <h3 className="text-lg font-semibold text-gray-700 mb-2">Your Games</h3>
-            <p className="text-gray-500">Games you've created or joined</p>
-            {/* TODO: Display user's games from API */}
-            <div className="mt-4 text-sm text-gray-400">
-              No games found
-            </div>
+          {/* Your Games */}
+          <div className="bg-gray-100 p-6 rounded-lg">
+            <h3 className="text-lg font-semibold text-gray-700 mb-4">Your Games</h3>
+            <p className="text-gray-500 mb-4">Games you've created or joined</p>
+            {loading ? (
+              <div className="text-center text-gray-500">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto mb-2"></div>
+                Loading your games...
+              </div>
+            ) : getYourGames().length === 0 ? (
+              <div className="text-center text-gray-400">No games found</div>
+            ) : (
+              <div className="space-y-3">
+                {getYourGames().map((game) => (
+                  <div key={game.id} className="bg-white p-4 rounded border">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="font-medium">Wager: {formatWager(game.wager)}</div>
+                        <div className="text-sm text-gray-500">
+                          {game.owner === userAddress ? 'You created' : 'You joined'} • {formatDate(game.createdAt)}
+                        </div>
+                        {game.opponent && (
+                          <div className="text-sm text-gray-600">
+                            {game.opponent === userAddress ? 'You' : formatAddress(game.opponent)} vs {game.owner === userAddress ? 'You' : formatAddress(game.owner)}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <div className={`px-2 py-1 rounded text-xs font-medium ${
+                          game.state === 'CREATED' ? 'bg-yellow-100 text-yellow-800' :
+                          game.state === 'STARTED' ? 'bg-green-100 text-green-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {game.state}
+                        </div>
+                        {game.startedAt && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            Started: {formatDate(game.startedAt)}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
         

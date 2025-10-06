@@ -3,8 +3,12 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import gameRoutes from './routes/gameRoutes';
 import { GameLobby } from './services/GameLobby';
+import { initializePrivyClient } from './middleware/auth';
 
 dotenv.config();
+
+// Initialize Privy client after environment variables are loaded
+initializePrivyClient();
 
 const app = express();
 const PORT = process.env.PORT || 3001;

@@ -24,13 +24,23 @@ export const CreateGameView: React.FC = () => {
         dispatch({ type: 'SET_LOADING', isLoading: true });
         dispatch({ type: 'CLEAR_ERROR' });
         
-        const game = await apiClient.createGame(
+        const response = await apiClient.createGame(
           state.wagerAmount,
           state.opponentAddress || undefined
         );
         
-        console.log('Game created successfully:', game);
-        // TODO: Navigate to game view or show success message
+        console.log('Game created successfully:', response);
+        
+        if (response.success && response.data) {
+          // Show success message and navigate back to menu
+          alert(`Game created successfully! Game ID: ${response.data.id}`);
+          
+          if (userAddress) {
+            dispatch({ type: 'NAVIGATE_TO_MENU', userAddress });
+          }
+        } else {
+          throw new Error(response.error || 'Failed to create game');
+        }
         
       } catch (error) {
         console.error('Failed to create game:', error);
