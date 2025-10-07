@@ -17,7 +17,7 @@ interface Game {
 interface GameData {
   openGames: Game[];
   userGames: Game[];
-  userChallenges: Game[];
+  gameInvitations: Game[];
   activeGames: Game[];
 }
 
@@ -43,7 +43,7 @@ export const BrowseGamesView: React.FC = () => {
   const [gameData, setGameData] = useState<GameData>({
     openGames: [],
     userGames: [],
-    userChallenges: [],
+    gameInvitations: [],
     activeGames: []
   });
   const [loading, setLoading] = useState(true);
@@ -93,6 +93,43 @@ export const BrowseGamesView: React.FC = () => {
     }
   };
 
+  const handleAcceptInvitation = async (gameId: string, wagerAmount: string) => {
+    if (!userAddress) return;
+    
+    try {
+      setLoading(true);
+      setError(null);
+      console.log('🎯 [FRONTEND] Accepting game invitation:', { gameId, wagerAmount });
+      
+      // Convert wager from wei to ETH for the API
+      const wagerBigInt = BigInt(wagerAmount);
+      const wagerInEth = Number(wagerBigInt) / 1e18;
+      
+      const response = await apiClient.acceptGameInvitation(gameId, wagerInEth.toString());
+      
+      console.log('🎯 [FRONTEND] Accept invitation response:', response);
+      
+      if (response.success && response.data) {
+        // Navigate to the game
+        dispatch({
+          type: 'NAVIGATE_TO_ARENA_GAME',
+          gameId: response.data.id,
+          userAddress,
+          opponentAddress: response.data.owner, // The owner is now the opponent
+          wagerAmount: response.data.wager,
+          isOwner: false
+        });
+      } else {
+        throw new Error(response.error || 'Failed to accept invitation');
+      }
+    } catch (err) {
+      console.error('Failed to accept invitation:', err);
+      setError(err instanceof Error ? err.message : 'Failed to accept invitation');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const fetchAllGames = async () => {
     if (!userAddress) {
       console.log('🔍 BROWSE GAMES DEBUG - No user address, skipping fetch');
@@ -107,22 +144,23 @@ export const BrowseGamesView: React.FC = () => {
       
       // Fetch all game data in parallel
       console.log('🔍 BROWSE GAMES DEBUG - Starting parallel fetch...');
-      const [openGamesRes, userGamesRes, userChallengesRes, activeGamesRes] = await Promise.all([
-        apiClient.getOpenGames(),
+      console.log('🔍 BROWSE GAMES DEBUG - User address being sent to getUserGames:', userAddress);
+      const [openGamesRes, userGamesRes, gameInvitationsRes, activeGamesRes] = await Promise.all([
+        apiClient.getOpenGames(userAddress), // Pass userAddress to exclude their own games
         apiClient.getUserGames(userAddress),
-        apiClient.getUserChallenges(userAddress),
+        apiClient.getGameInvitations(userAddress), // Use new invitations endpoint
         apiClient.getActiveGames(userAddress)
       ]);
       
       console.log('🔍 BROWSE GAMES DEBUG - Open games response:', openGamesRes);
       console.log('🔍 BROWSE GAMES DEBUG - User games response:', userGamesRes);
-      console.log('🔍 BROWSE GAMES DEBUG - User challenges response:', userChallengesRes);
+      console.log('🔍 BROWSE GAMES DEBUG - Game invitations response:', gameInvitationsRes);
       console.log('🔍 BROWSE GAMES DEBUG - Active games response:', activeGamesRes);
       
       const newGameData = {
         openGames: openGamesRes.data || [],
         userGames: userGamesRes.data || [],
-        userChallenges: userChallengesRes.data || [],
+        gameInvitations: gameInvitationsRes.data || [],
         activeGames: activeGamesRes.data || []
       };
       
@@ -167,12 +205,18 @@ export const BrowseGamesView: React.FC = () => {
 
   const getYourGames = () => {
     console.log('🔍 BROWSE GAMES DEBUG - Your games:', gameData.userGames);
+    console.log('🔍 BROWSE GAMES DEBUG - User address for comparison:', userAddress);
+    console.log('🔍 BROWSE GAMES DEBUG - Your games count:', gameData.userGames.length);
+    if (gameData.userGames.length > 0) {
+      console.log('🔍 BROWSE GAMES DEBUG - First game owner:', gameData.userGames[0].owner);
+      console.log('🔍 BROWSE GAMES DEBUG - Owner match:', gameData.userGames[0].owner.toLowerCase() === userAddress?.toLowerCase());
+    }
     return gameData.userGames;
   };
 
-  const getYourChallenges = () => {
-    console.log('🔍 BROWSE GAMES DEBUG - Your challenges:', gameData.userChallenges);
-    return gameData.userChallenges;
+  const getGameInvitations = () => {
+    console.log('🔍 BROWSE GAMES DEBUG - Game invitations:', gameData.gameInvitations);
+    return gameData.gameInvitations;
   };
 
   const getActiveGames = () => {
@@ -332,29 +376,29 @@ export const BrowseGamesView: React.FC = () => {
             )}
           </div>
           
-          {/* Your Challenges */}
+          {/* Game Invitations */}
           <div className="bg-blue-50 p-6 rounded-lg">
-            <h3 className="text-lg font-semibold text-gray-700 mb-4">Your Challenges</h3>
+            <h3 className="text-lg font-semibold text-gray-700 mb-4">Game Invitations</h3>
             <p className="text-gray-500 mb-4">Games where you're invited as opponent</p>
             {loading ? (
               <div className="text-center text-gray-500">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto mb-2"></div>
-                Loading challenges...
+                Loading invitations...
               </div>
-            ) : getYourChallenges().length === 0 ? (
-              <div className="text-center text-gray-400">No challenges found</div>
+            ) : getGameInvitations().length === 0 ? (
+              <div className="text-center text-gray-400">No invitations found</div>
             ) : (
               <div className="space-y-3">
-                {getYourChallenges().map((game) => (
+                {getGameInvitations().map((game) => (
                   <div key={game.id} className="bg-white p-4 rounded border flex justify-between items-center">
                     <div>
                       <div className="font-medium">Wager: {formatWager(game.wager)}</div>
                       <div className="text-sm text-gray-500">
-                        Challenged by {formatAddress(game.owner)} • {formatDate(game.createdAt)}
+                        Invited by {formatAddress(game.owner)} • {formatDate(game.createdAt)}
                       </div>
                     </div>
                     <button
-                      onClick={() => handleJoinGame(game.id)}
+                      onClick={() => handleAcceptInvitation(game.id, game.wager)}
                       disabled={loading}
                       className={`px-4 py-2 rounded transition-colors ${
                         loading
@@ -362,7 +406,7 @@ export const BrowseGamesView: React.FC = () => {
                           : 'bg-blue-500 hover:bg-blue-600 text-white'
                       }`}
                     >
-                      {loading ? 'Accepting...' : 'Accept Challenge'}
+                      {loading ? 'Accepting...' : 'Accept Invitation'}
                     </button>
                   </div>
                 ))}

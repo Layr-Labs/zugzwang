@@ -22,21 +22,32 @@ export class GameLobby {
     const gameId = randomUUID();
     const wagerBigInt = BigInt(wager);
     
+    // Set state based on whether opponent is specified
+    const state = opponent ? GameState.WAITING : GameState.CREATED;
+    
     const game: Game = {
       id: gameId,
       owner,
       opponent,
       wager: wagerBigInt,
-      state: GameState.CREATED,
+      state: state,
       createdAt: new Date()
     };
+
+    console.log('🎮 [GAME_LOBBY] Created game:', {
+      id: gameId,
+      owner: owner,
+      opponent: opponent,
+      wager: wager,
+      state: state
+    });
 
     this.games.set(gameId, game);
     return game;
   }
 
   /**
-   * Join an existing game
+   * Join an existing open game (CREATED state)
    */
   public joinGame(gameId: string, opponent: string): Game | null {
     const game = this.games.get(gameId);
@@ -64,6 +75,58 @@ export class GameLobby {
     game.chessState = chessEngine.createInitialPosition();
 
     this.games.set(game.id, game);
+    return game;
+  }
+
+  /**
+   * Accept a game invitation (WAITING state)
+   */
+  public acceptGameInvitation(gameId: string, opponent: string, opponentWager: string): Game | null {
+    const game = this.games.get(gameId);
+    
+    if (!game) {
+      console.log('❌ [GAME_LOBBY] Game not found for invitation acceptance:', gameId);
+      return null;
+    }
+
+    if (game.state !== GameState.WAITING) {
+      console.log('❌ [GAME_LOBBY] Game is not in WAITING state:', game.state);
+      return null;
+    }
+
+    if (game.opponent?.toLowerCase() !== opponent.toLowerCase()) {
+      console.log('❌ [GAME_LOBBY] Opponent address mismatch:', {
+        gameOpponent: game.opponent,
+        providedOpponent: opponent
+      });
+      return null;
+    }
+
+    // Validate that opponent wager matches owner wager
+    const opponentWagerBigInt = BigInt(opponentWager);
+    if (game.wager !== opponentWagerBigInt) {
+      console.log('❌ [GAME_LOBBY] Wager amount mismatch:', {
+        gameWager: game.wager.toString(),
+        opponentWager: opponentWager
+      });
+      return null;
+    }
+
+    console.log('✅ [GAME_LOBBY] Accepting game invitation:', {
+      gameId: gameId,
+      opponent: opponent,
+      wager: opponentWager
+    });
+
+    // Start the game
+    game.state = GameState.STARTED;
+    game.startedAt = new Date();
+
+    // Initialize chess state
+    const chessEngine = ChessEngine.getInstance();
+    game.chessState = chessEngine.createInitialPosition();
+
+    this.games.set(gameId, game);
     return game;
   }
 
@@ -113,23 +176,67 @@ export class GameLobby {
    * Get games by owner
    */
   public getGamesByOwner(owner: string): Game[] {
-    return Array.from(this.games.values()).filter(game => game.owner === owner);
+    console.log('🔍 [GAME_LOBBY] getGamesByOwner called with:', owner);
+    const allGames = Array.from(this.games.values());
+    console.log('🔍 [GAME_LOBBY] All games in lobby:', allGames.map(g => ({ 
+      id: g.id, 
+      owner: g.owner, 
+      ownerLower: g.owner.toLowerCase(),
+      state: g.state, 
+      opponent: g.opponent 
+    })));
+    
+    const games = allGames.filter(game => {
+      const match = game.owner.toLowerCase() === owner.toLowerCase();
+      console.log('🔍 [GAME_LOBBY] Comparing:', {
+        gameOwner: game.owner,
+        gameOwnerLower: game.owner.toLowerCase(),
+        searchOwner: owner,
+        searchOwnerLower: owner.toLowerCase(),
+        match: match
+      });
+      return match;
+    });
+    
+    console.log('🔍 [GAME_LOBBY] Found games for owner:', {
+      owner: owner,
+      gameCount: games.length,
+      games: games.map(g => ({ id: g.id, owner: g.owner, state: g.state, opponent: g.opponent }))
+    });
+    return games;
   }
 
   /**
    * Get games by opponent
    */
   public getGamesByOpponent(opponent: string): Game[] {
-    return Array.from(this.games.values()).filter(game => game.opponent === opponent);
+    return Array.from(this.games.values()).filter(game => 
+      game.opponent && game.opponent.toLowerCase() === opponent.toLowerCase()
+    );
   }
 
   /**
-   * Get open games (CREATED state with no required opponent)
+   * Get open games (CREATED state with no required opponent, excluding games created by the requesting user)
    */
-  public getOpenGames(): Game[] {
-    return Array.from(this.games.values()).filter(
-      game => game.state === GameState.CREATED && game.opponent === null
+  public getOpenGames(excludeUserAddress?: string): Game[] {
+    console.log('🔍 [GAME_LOBBY] getOpenGames called with excludeUserAddress:', excludeUserAddress);
+    const allGames = Array.from(this.games.values());
+    console.log('🔍 [GAME_LOBBY] Total games in lobby:', allGames.length);
+    
+    const openGames = allGames.filter(
+      game => game.state === GameState.CREATED && 
+              game.opponent === null &&
+              (!excludeUserAddress || game.owner.toLowerCase() !== excludeUserAddress.toLowerCase())
     );
+    
+    console.log('🔍 [GAME_LOBBY] Open games found:', {
+      totalGames: allGames.length,
+      openGamesCount: openGames.length,
+      excludeUserAddress: excludeUserAddress,
+      openGames: openGames.map(g => ({ id: g.id, owner: g.owner, state: g.state, opponent: g.opponent }))
+    });
+    
+    return openGames;
   }
 
   /**
@@ -141,6 +248,26 @@ export class GameLobby {
               (game.owner.toLowerCase() === userAddress.toLowerCase() || 
                (game.opponent && game.opponent.toLowerCase() === userAddress.toLowerCase()))
     );
+  }
+
+  /**
+   * Get games where user was invited as opponent (WAITING state)
+   */
+  public getGameInvitations(userAddress: string): Game[] {
+    console.log('🔍 [GAME_LOBBY] getGameInvitations called with userAddress:', userAddress);
+    const invitations = Array.from(this.games.values()).filter(
+      game => game.state === GameState.WAITING && 
+              game.opponent && 
+              game.opponent.toLowerCase() === userAddress.toLowerCase()
+    );
+    
+    console.log('🔍 [GAME_LOBBY] Game invitations found:', {
+      userAddress: userAddress,
+      invitationCount: invitations.length,
+      invitations: invitations.map(g => ({ id: g.id, owner: g.owner, state: g.state, opponent: g.opponent }))
+    });
+    
+    return invitations;
   }
 
   /**

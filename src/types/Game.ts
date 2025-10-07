@@ -1,7 +1,8 @@
 export enum GameState {
-  CREATED = 'CREATED',
-  STARTED = 'STARTED',
-  SETTLED = 'SETTLED'
+  CREATED = 'CREATED',    // Open game waiting for any opponent to join
+  WAITING = 'WAITING',    // Game with specific opponent invited, waiting for acceptance
+  STARTED = 'STARTED',    // Game in progress
+  SETTLED = 'SETTLED'     // Game completed
 }
 
 import { ChessGameState } from './Chess';
@@ -36,6 +37,11 @@ export interface CreateGameRequest {
 
 export interface JoinGameRequest {
   gameId: string;
+}
+
+export interface AcceptGameInvitationRequest {
+  gameId: string;
+  wagerAmount: string; // Wager amount in ETH as string (will be converted to BigInt wei)
 }
 
 export interface GameApiResponse {

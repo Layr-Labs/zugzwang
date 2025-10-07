@@ -49,8 +49,11 @@ export const useApiClient = () => {
       return makeRequest('/api/games');
     },
 
-    getOpenGames: async () => {
-      return makeRequest('/api/games/open');
+    getOpenGames: async (excludeUserAddress?: string) => {
+      const url = excludeUserAddress 
+        ? `/api/games/open?excludeUser=${encodeURIComponent(excludeUserAddress)}`
+        : '/api/games/open';
+      return makeRequest(url);
     },
 
     getUserGames: async (userAddress: string) => {
@@ -63,6 +66,20 @@ export const useApiClient = () => {
 
     getActiveGames: async (userAddress: string) => {
       return makeRequest(`/api/games/active?user=${userAddress}`);
+    },
+
+    getGameInvitations: async (userAddress: string) => {
+      return makeRequest(`/api/games/invitations?user=${userAddress}`);
+    },
+
+    acceptGameInvitation: async (gameId: string, wagerAmount: string) => {
+      return makeRequest('/api/games/accept-invitation', {
+        method: 'POST',
+        body: JSON.stringify({
+          gameId,
+          wagerAmount,
+        }),
+      });
     },
 
     joinGame: async (gameId: string) => {
