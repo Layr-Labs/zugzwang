@@ -1,5 +1,6 @@
 import { usePrivy } from '@privy-io/react-auth';
 import { getApiUrl } from '../config/environment';
+import { useMemo } from 'react';
 
 export const useApiClient = () => {
   const { getAccessToken } = usePrivy();
@@ -33,7 +34,7 @@ export const useApiClient = () => {
     return data;
   };
 
-  return {
+  return useMemo(() => ({
     createGame: async (wagerAmount: string, opponentAddress?: string) => {
       return makeRequest('/api/games/create', {
         method: 'POST',
@@ -60,6 +61,10 @@ export const useApiClient = () => {
       return makeRequest(`/api/games?opponent=${userAddress}`);
     },
 
+    getActiveGames: async (userAddress: string) => {
+      return makeRequest(`/api/games/active?user=${userAddress}`);
+    },
+
     joinGame: async (gameId: string) => {
       return makeRequest('/api/games/join', {
         method: 'POST',
@@ -72,5 +77,24 @@ export const useApiClient = () => {
     getGame: async (gameId: string) => {
       return makeRequest(`/api/games/${gameId}`);
     },
-  };
+
+    getChessGameState: async (gameId: string) => {
+      return makeRequest(`/api/games/${gameId}/chess`);
+    },
+
+    getValidMoves: async (gameId: string, row: number, col: number) => {
+      return makeRequest(`/api/games/${gameId}/chess/valid-moves/${row}/${col}`);
+    },
+
+    makeChessMove: async (gameId: string, from: { row: number; col: number }, to: { row: number; col: number }, promotionPiece?: string) => {
+      return makeRequest(`/api/games/${gameId}/chess/move`, {
+        method: 'POST',
+        body: JSON.stringify({
+          from,
+          to,
+          promotionPiece
+        }),
+      });
+    },
+  }), [getAccessToken]);
 };

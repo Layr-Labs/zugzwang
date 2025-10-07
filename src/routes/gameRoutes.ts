@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { GameLobby } from '../services/GameLobby';
 import { GameApiResponse, GamesListApiResponse, serializeGame } from '../types/Game';
+import { MoveRequest, MoveResponse } from '../types/Chess';
 import { authenticateUser, validateAddressOwnership, AuthenticatedRequest } from '../middleware/auth';
 
 const router = Router();
@@ -151,6 +152,36 @@ router.get('/open', (req: Request, res: Response) => {
   }
 });
 
+// Get active games (STARTED games where user is owner or opponent)
+router.get('/active', (req: Request, res: Response) => {
+  try {
+    const userAddress = req.query.user as string;
+    
+    if (!userAddress) {
+      const response: GamesListApiResponse = {
+        success: false,
+        error: 'User address is required'
+      };
+      return res.status(400).json(response);
+    }
+    
+    const games = gameLobby.getActiveGames(userAddress);
+    
+    const response: GamesListApiResponse = {
+      success: true,
+      data: games.map(serializeGame)
+    };
+    
+    res.json(response);
+  } catch (error) {
+    const response: GamesListApiResponse = {
+      success: false,
+      error: 'Internal server error'
+    };
+    res.status(500).json(response);
+  }
+});
+
 // Get game statistics - MUST be before /:gameId
 router.get('/stats', (req: Request, res: Response) => {
   try {
@@ -220,6 +251,153 @@ router.get('/:gameId', (req: Request, res: Response) => {
     res.json(response);
   } catch (error) {
     const response: GameApiResponse = {
+      success: false,
+      error: 'Internal server error'
+    };
+    res.status(500).json(response);
+  }
+});
+
+// Get chess game state
+router.get('/:gameId/chess', authenticateUser, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { gameId } = req.params;
+    const userAddress = req.user?.address;
+
+    if (!userAddress) {
+      const response: GameApiResponse = {
+        success: false,
+        error: 'User address not found'
+      };
+      return res.status(401).json(response);
+    }
+
+    const chessState = gameLobby.getChessGameState(gameId);
+    
+    if (!chessState) {
+      const response: GameApiResponse = {
+        success: false,
+        error: 'Game not found or chess not initialized'
+      };
+      return res.status(404).json(response);
+    }
+
+    const response = {
+      success: true,
+      data: chessState
+    };
+    
+    res.json(response);
+  } catch (error) {
+    const response: GameApiResponse = {
+      success: false,
+      error: 'Internal server error'
+    };
+    res.status(500).json(response);
+  }
+});
+
+// Get valid moves for a piece
+router.get('/:gameId/chess/valid-moves/:row/:col', authenticateUser, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { gameId, row, col } = req.params;
+    const userAddress = req.user?.address;
+
+    if (!userAddress) {
+      const response: MoveResponse = {
+        success: false,
+        error: 'User address not found'
+      };
+      return res.status(401).json(response);
+    }
+
+    const rowNum = parseInt(row);
+    const colNum = parseInt(col);
+
+    if (isNaN(rowNum) || isNaN(colNum) || rowNum < 0 || rowNum > 7 || colNum < 0 || colNum > 7) {
+      const response: MoveResponse = {
+        success: false,
+        error: 'Invalid coordinates'
+      };
+      return res.status(400).json(response);
+    }
+
+    const result = gameLobby.getValidMoves(gameId, rowNum, colNum, userAddress);
+    
+    if (!result.success) {
+      const response: MoveResponse = {
+        success: false,
+        error: result.error
+      };
+      return res.status(400).json(response);
+    }
+
+    const response: MoveResponse = {
+      success: true,
+      validMoves: result.validMoves
+    };
+    
+    res.json(response);
+  } catch (error) {
+    const response: MoveResponse = {
+      success: false,
+      error: 'Internal server error'
+    };
+    res.status(500).json(response);
+  }
+});
+
+// Make a chess move
+router.post('/:gameId/chess/move', authenticateUser, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { gameId } = req.params;
+    const { from, to, promotionPiece } = req.body as MoveRequest;
+    const userAddress = req.user?.address;
+
+    if (!userAddress) {
+      const response: MoveResponse = {
+        success: false,
+        error: 'User address not found'
+      };
+      return res.status(401).json(response);
+    }
+
+    if (!from || !to || typeof from.row !== 'number' || typeof from.col !== 'number' || 
+        typeof to.row !== 'number' || typeof to.col !== 'number') {
+      const response: MoveResponse = {
+        success: false,
+        error: 'Invalid move coordinates'
+      };
+      return res.status(400).json(response);
+    }
+
+    const result = gameLobby.makeChessMove(
+      gameId, 
+      from.row, 
+      from.col, 
+      to.row, 
+      to.col, 
+      userAddress, 
+      promotionPiece
+    );
+    
+    if (!result.success) {
+      const response: MoveResponse = {
+        success: false,
+        error: result.error
+      };
+      return res.status(400).json(response);
+    }
+
+    const response: MoveResponse = {
+      success: true,
+      move: result.move,
+      gameState: result.gameState
+    };
+    
+    res.json(response);
+  } catch (error) {
+    const response: MoveResponse = {
       success: false,
       error: 'Internal server error'
     };

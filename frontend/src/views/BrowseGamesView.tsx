@@ -18,6 +18,7 @@ interface GameData {
   openGames: Game[];
   userGames: Game[];
   userChallenges: Game[];
+  activeGames: Game[];
 }
 
 export const BrowseGamesView: React.FC = () => {
@@ -34,13 +35,16 @@ export const BrowseGamesView: React.FC = () => {
   console.log('🔍 BROWSE GAMES DEBUG - User object:', user);
   console.log('🔍 BROWSE GAMES DEBUG - User wallet address:', user?.wallet?.address);
   console.log('🔍 BROWSE GAMES DEBUG - User linked accounts:', user?.linkedAccounts);
+  console.log('🔍 BROWSE GAMES DEBUG - Wallet account found:', walletAccount);
   console.log('🔍 BROWSE GAMES DEBUG - State user address:', state.type === 'BROWSE_GAMES' ? state.userAddress : undefined);
   console.log('🔍 BROWSE GAMES DEBUG - Final user address:', userAddress);
+  console.log('🔍 BROWSE GAMES DEBUG - User address length:', userAddress?.length);
   
   const [gameData, setGameData] = useState<GameData>({
     openGames: [],
     userGames: [],
-    userChallenges: []
+    userChallenges: [],
+    activeGames: []
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +53,19 @@ export const BrowseGamesView: React.FC = () => {
     if (userAddress) {
       fetchAllGames();
     }
-  }, [userAddress, apiClient]);
+  }, [userAddress]);
+
+  // Add polling every 5 seconds (disabled for now to debug)
+  // useEffect(() => {
+  //   if (!userAddress) return;
+
+  //   const interval = setInterval(() => {
+  //     console.log('🔍 BROWSE GAMES DEBUG - Polling for games...');
+  //     fetchAllGames();
+  //   }, 5000); // Poll every 5 seconds
+
+  //   return () => clearInterval(interval);
+  // }, [userAddress]);
 
   const handleBackToMenu = () => {
     if (userAddress) {
@@ -91,23 +107,29 @@ export const BrowseGamesView: React.FC = () => {
       
       // Fetch all game data in parallel
       console.log('🔍 BROWSE GAMES DEBUG - Starting parallel fetch...');
-      const [openGamesRes, userGamesRes, userChallengesRes] = await Promise.all([
+      const [openGamesRes, userGamesRes, userChallengesRes, activeGamesRes] = await Promise.all([
         apiClient.getOpenGames(),
         apiClient.getUserGames(userAddress),
-        apiClient.getUserChallenges(userAddress)
+        apiClient.getUserChallenges(userAddress),
+        apiClient.getActiveGames(userAddress)
       ]);
       
       console.log('🔍 BROWSE GAMES DEBUG - Open games response:', openGamesRes);
       console.log('🔍 BROWSE GAMES DEBUG - User games response:', userGamesRes);
       console.log('🔍 BROWSE GAMES DEBUG - User challenges response:', userChallengesRes);
+      console.log('🔍 BROWSE GAMES DEBUG - Active games response:', activeGamesRes);
       
       const newGameData = {
         openGames: openGamesRes.data || [],
         userGames: userGamesRes.data || [],
-        userChallenges: userChallengesRes.data || []
+        userChallenges: userChallengesRes.data || [],
+        activeGames: activeGamesRes.data || []
       };
       
       console.log('🔍 BROWSE GAMES DEBUG - Setting game data:', newGameData);
+      console.log('🔍 BROWSE GAMES DEBUG - User address for comparison:', userAddress);
+      console.log('🔍 BROWSE GAMES DEBUG - Open games before filtering:', newGameData.openGames);
+      console.log('🔍 BROWSE GAMES DEBUG - User games before filtering:', newGameData.userGames);
       setGameData(newGameData);
     } catch (err) {
       console.error('🔍 BROWSE GAMES DEBUG - Failed to fetch games:', err);
@@ -121,14 +143,26 @@ export const BrowseGamesView: React.FC = () => {
     fetchAllGames();
   };
 
-  // Helper functions to categorize games - now using the fetched data directly
+  const handlePlayGame = (game: Game) => {
+    if (!userAddress) return;
+    
+    const isOwner = game.owner.toLowerCase() === userAddress.toLowerCase();
+    const opponentAddress = isOwner ? game.opponent : game.owner;
+    
+    dispatch({
+      type: 'NAVIGATE_TO_ARENA_GAME',
+      gameId: game.id,
+      userAddress,
+      opponentAddress: opponentAddress || undefined,
+      wagerAmount: game.wager.toString(),
+      isOwner
+    });
+  };
+
+  // Helper functions to display games - no client-side filtering
   const getOpenGames = () => {
-    const openGames = gameData.openGames.filter(game => 
-      game.state === 'CREATED' && 
-      (!game.opponent || game.opponent.toLowerCase() !== userAddress?.toLowerCase())
-    );
-    console.log('🔍 BROWSE GAMES DEBUG - Open games:', openGames);
-    return openGames;
+    console.log('🔍 BROWSE GAMES DEBUG - Open games:', gameData.openGames);
+    return gameData.openGames;
   };
 
   const getYourGames = () => {
@@ -137,12 +171,13 @@ export const BrowseGamesView: React.FC = () => {
   };
 
   const getYourChallenges = () => {
-    const challenges = gameData.userChallenges.filter(game => 
-      game.state === 'CREATED' &&
-      game.owner.toLowerCase() !== userAddress?.toLowerCase()
-    );
-    console.log('🔍 BROWSE GAMES DEBUG - Your challenges:', challenges);
-    return challenges;
+    console.log('🔍 BROWSE GAMES DEBUG - Your challenges:', gameData.userChallenges);
+    return gameData.userChallenges;
+  };
+
+  const getActiveGames = () => {
+    console.log('🔍 BROWSE GAMES DEBUG - Active games:', gameData.activeGames);
+    return gameData.activeGames;
   };
 
   const formatWager = (wager: string) => {
@@ -253,7 +288,50 @@ export const BrowseGamesView: React.FC = () => {
               </div>
             )}
           </div>
-
+          
+          {/* Active Games */}
+          <div className="bg-green-100 p-6 rounded-lg">
+            <h3 className="text-lg font-semibold text-gray-700 mb-4">Active Games</h3>
+            <p className="text-gray-500 mb-4">Games currently in progress</p>
+            {loading ? (
+              <div className="text-center text-gray-500">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto mb-2"></div>
+                Loading active games...
+              </div>
+            ) : getActiveGames().length === 0 ? (
+              <div className="text-center text-gray-400">No active games found</div>
+            ) : (
+              <div className="space-y-3">
+                {getActiveGames().map((game) => (
+                  <div key={game.id} className="bg-white p-4 rounded border">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="font-medium">Wager: {formatWager(game.wager)}</div>
+                        <div className="text-sm text-gray-500">
+                          {game.owner.toLowerCase() === userAddress?.toLowerCase() ? 'You vs' : 'vs You'} {formatAddress(game.opponent || game.owner)} • Started {formatDate(game.startedAt || game.createdAt)}
+                        </div>
+                        <div className="text-sm text-green-600 font-medium">
+                          Game ID: {game.id.substring(0, 8)}...
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800 mb-2">
+                          {game.state}
+                        </div>
+                        <button
+                          onClick={() => handlePlayGame(game)}
+                          className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded transition-colors"
+                        >
+                          PLAY GAME
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          
           {/* Your Challenges */}
           <div className="bg-blue-50 p-6 rounded-lg">
             <h3 className="text-lg font-semibold text-gray-700 mb-4">Your Challenges</h3>
@@ -311,11 +389,15 @@ export const BrowseGamesView: React.FC = () => {
                       <div>
                         <div className="font-medium">Wager: {formatWager(game.wager)}</div>
                         <div className="text-sm text-gray-500">
-                          {game.owner === userAddress ? 'You created' : 'You joined'} • {formatDate(game.createdAt)}
+                          You created • {formatDate(game.createdAt)}
                         </div>
-                        {game.opponent && (
-                          <div className="text-sm text-gray-600">
-                            {game.opponent === userAddress ? 'You' : formatAddress(game.opponent)} vs {game.owner === userAddress ? 'You' : formatAddress(game.owner)}
+                        {game.opponent ? (
+                          <div className="text-sm text-blue-600">
+                            Invited: {formatAddress(game.opponent)}
+                          </div>
+                        ) : (
+                          <div className="text-sm text-gray-500">
+                            Waiting for opponent
                           </div>
                         )}
                       </div>

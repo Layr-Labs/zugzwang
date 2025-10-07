@@ -1,4 +1,5 @@
 import { Game, GameState } from '../types/Game';
+import { ChessEngine } from './ChessEngine';
 import { randomUUID } from 'crypto';
 
 export class GameLobby {
@@ -57,6 +58,10 @@ export class GameLobby {
     game.opponent = opponent;
     game.state = GameState.STARTED;
     game.startedAt = new Date();
+
+    // Initialize chess game state
+    const chessEngine = ChessEngine.getInstance();
+    game.chessState = chessEngine.createInitialPosition();
 
     this.games.set(game.id, game);
     return game;
@@ -125,6 +130,106 @@ export class GameLobby {
     return Array.from(this.games.values()).filter(
       game => game.state === GameState.CREATED && game.opponent === null
     );
+  }
+
+  /**
+   * Get active games (STARTED state where user is owner or opponent)
+   */
+  public getActiveGames(userAddress: string): Game[] {
+    return Array.from(this.games.values()).filter(
+      game => game.state === GameState.STARTED && 
+              (game.owner.toLowerCase() === userAddress.toLowerCase() || 
+               (game.opponent && game.opponent.toLowerCase() === userAddress.toLowerCase()))
+    );
+  }
+
+  /**
+   * Get chess game state for a game
+   */
+  public getChessGameState(gameId: string): any | null {
+    const game = this.games.get(gameId);
+    return game?.chessState || null;
+  }
+
+  /**
+   * Make a chess move
+   */
+  public makeChessMove(gameId: string, fromRow: number, fromCol: number, toRow: number, toCol: number, playerAddress: string, promotionPiece?: string): { success: boolean; move?: any; gameState?: any; error?: string } {
+    const game = this.games.get(gameId);
+    
+    if (!game) {
+      return { success: false, error: 'Game not found' };
+    }
+
+    if (game.state !== GameState.STARTED) {
+      return { success: false, error: 'Game is not active' };
+    }
+
+    if (!game.chessState) {
+      return { success: false, error: 'Chess state not initialized' };
+    }
+
+    // Check if it's the player's turn
+    const isOwner = game.owner.toLowerCase() === playerAddress.toLowerCase();
+    const isOpponent = game.opponent && game.opponent.toLowerCase() === playerAddress.toLowerCase();
+    
+    if (!isOwner && !isOpponent) {
+      return { success: false, error: 'You are not a player in this game' };
+    }
+
+    // Determine player color
+    const playerColor = isOwner ? 'white' : 'black';
+    if (game.chessState.currentPlayer !== playerColor) {
+      return { success: false, error: 'Not your turn' };
+    }
+
+    // Make the move
+    const chessEngine = ChessEngine.getInstance();
+    const result = chessEngine.makeMove(game.chessState, fromRow, fromCol, toRow, toCol, promotionPiece as any);
+    
+    if (result.success && result.newGameState) {
+      game.chessState = result.newGameState;
+      this.games.set(gameId, game);
+    }
+
+    return result;
+  }
+
+  /**
+   * Get valid moves for a piece
+   */
+  public getValidMoves(gameId: string, row: number, col: number, playerAddress: string): { success: boolean; validMoves?: { row: number; col: number }[]; error?: string } {
+    const game = this.games.get(gameId);
+    
+    if (!game) {
+      return { success: false, error: 'Game not found' };
+    }
+
+    if (game.state !== GameState.STARTED) {
+      return { success: false, error: 'Game is not active' };
+    }
+
+    if (!game.chessState) {
+      return { success: false, error: 'Chess state not initialized' };
+    }
+
+    // Check if it's the player's turn
+    const isOwner = game.owner.toLowerCase() === playerAddress.toLowerCase();
+    const isOpponent = game.opponent && game.opponent.toLowerCase() === playerAddress.toLowerCase();
+    
+    if (!isOwner && !isOpponent) {
+      return { success: false, error: 'You are not a player in this game' };
+    }
+
+    const playerColor = isOwner ? 'white' : 'black';
+    if (game.chessState.currentPlayer !== playerColor) {
+      return { success: false, error: 'Not your turn' };
+    }
+
+    const chessEngine = ChessEngine.getInstance();
+    const validMoves = chessEngine.getValidMoves(game.chessState, row, col);
+
+    return { success: true, validMoves };
   }
 
   /**

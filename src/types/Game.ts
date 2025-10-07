@@ -4,6 +4,8 @@ export enum GameState {
   SETTLED = 'SETTLED'
 }
 
+import { ChessGameState } from './Chess';
+
 export interface Game {
   id: string;
   owner: string; // Ethereum address
@@ -13,6 +15,7 @@ export interface Game {
   createdAt: Date;
   startedAt?: Date;
   settledAt?: Date;
+  chessState?: ChessGameState; // Chess game state when game is STARTED
 }
 
 export interface GameResponse {
