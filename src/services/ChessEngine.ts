@@ -106,18 +106,46 @@ export class ChessEngine {
    * Make a move and return the new game state
    */
   public makeMove(gameState: ChessGameState, fromRow: number, fromCol: number, toRow: number, toCol: number, promotionPiece?: PieceType): { success: boolean; newGameState?: ChessGameState; move?: ChessMove; error?: string } {
+    console.log('♟️ [CHESS_ENGINE] makeMove called:', {
+      from: { row: fromRow, col: fromCol },
+      to: { row: toRow, col: toCol },
+      promotionPiece: promotionPiece,
+      currentPlayer: gameState.currentPlayer,
+      gameStatus: gameState.gameStatus,
+      fullMoveNumber: gameState.fullMoveNumber
+    });
+
     // Validate move
+    console.log('🔍 [CHESS_ENGINE] Getting valid moves for piece...');
     const validMoves = this.getValidMoves(gameState, fromRow, fromCol);
+    console.log('📋 [CHESS_ENGINE] Valid moves found:', {
+      count: validMoves.length,
+      moves: validMoves
+    });
+
     const isValidMove = validMoves.some(move => move.row === toRow && move.col === toCol);
+    console.log('✅ [CHESS_ENGINE] Move validation:', {
+      isValidMove: isValidMove,
+      targetMove: { row: toRow, col: toCol }
+    });
 
     if (!isValidMove) {
+      console.log('❌ [CHESS_ENGINE] Invalid move - not in valid moves list');
       return { success: false, error: 'Invalid move' };
     }
 
     // Create new game state
+    console.log('🔄 [CHESS_ENGINE] Creating deep copy of game state...');
     const newGameState = this.deepCopyGameState(gameState);
     const piece = newGameState.board[fromRow][fromCol].piece!;
     const capturedPiece = newGameState.board[toRow][toCol].piece;
+
+    console.log('♟️ [CHESS_ENGINE] Piece details:', {
+      movingPiece: piece ? `${piece.color} ${piece.type}` : 'none',
+      capturedPiece: capturedPiece ? `${capturedPiece.color} ${capturedPiece.type}` : 'none',
+      fromSquare: { row: fromRow, col: fromCol },
+      toSquare: { row: toRow, col: toCol }
+    });
 
     // Create move object
     const move: ChessMove = {
@@ -127,19 +155,31 @@ export class ChessEngine {
       capturedPiece: capturedPiece || undefined
     };
 
+    console.log('📝 [CHESS_ENGINE] Move object created:', {
+      from: move.from,
+      to: move.to,
+      piece: move.piece ? `${move.piece.color} ${move.piece.type}` : 'none',
+      capturedPiece: move.capturedPiece ? `${move.capturedPiece.color} ${move.capturedPiece.type}` : 'none'
+    });
+
     // Handle special moves
+    console.log('🎭 [CHESS_ENGINE] Handling special moves...');
     this.handleSpecialMoves(newGameState, move);
 
     // Execute the move
+    console.log('⚡ [CHESS_ENGINE] Executing move on board...');
     newGameState.board[toRow][toCol].piece = piece;
     newGameState.board[fromRow][fromCol].piece = null;
 
     // Update captured pieces
     if (capturedPiece) {
+      console.log('🏆 [CHESS_ENGINE] Adding captured piece:', `${capturedPiece.color} ${capturedPiece.type}`);
       newGameState.capturedPieces[piece.color].push(capturedPiece);
     }
 
     // Update game state
+    console.log('🔄 [CHESS_ENGINE] Updating game state...');
+    const previousPlayer = newGameState.currentPlayer;
     newGameState.currentPlayer = piece.color === 'white' ? 'black' : 'white';
     newGameState.moveHistory.push(move);
     newGameState.lastMove = move;
@@ -148,9 +188,25 @@ export class ChessEngine {
       newGameState.fullMoveNumber++;
     }
 
-    // Check for check/checkmate/stalemate
-    this.updateGameStatus(newGameState);
+    console.log('📊 [CHESS_ENGINE] Game state updated:', {
+      previousPlayer: previousPlayer,
+      currentPlayer: newGameState.currentPlayer,
+      fullMoveNumber: newGameState.fullMoveNumber,
+      halfMoveClock: newGameState.halfMoveClock,
+      moveHistoryLength: newGameState.moveHistory.length
+    });
 
+    // Check for check/checkmate/stalemate
+    console.log('🔍 [CHESS_ENGINE] Checking game status...');
+    const previousStatus = newGameState.gameStatus;
+    this.updateGameStatus(newGameState);
+    console.log('🎯 [CHESS_ENGINE] Game status updated:', {
+      previousStatus: previousStatus,
+      newStatus: newGameState.gameStatus,
+      winner: newGameState.winner
+    });
+
+    console.log('✅ [CHESS_ENGINE] Move completed successfully');
     return { success: true, newGameState, move };
   }
 

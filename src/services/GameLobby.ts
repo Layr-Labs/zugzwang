@@ -155,17 +155,36 @@ export class GameLobby {
    * Make a chess move
    */
   public makeChessMove(gameId: string, fromRow: number, fromCol: number, toRow: number, toCol: number, playerAddress: string, promotionPiece?: string): { success: boolean; move?: any; gameState?: any; error?: string } {
+    console.log('🎮 [GAME_LOBBY] makeChessMove called:', {
+      gameId: gameId.substring(0, 8) + '...',
+      from: { row: fromRow, col: fromCol },
+      to: { row: toRow, col: toCol },
+      playerAddress: playerAddress.substring(0, 8) + '...',
+      promotionPiece: promotionPiece
+    });
+
     const game = this.games.get(gameId);
     
     if (!game) {
+      console.log('❌ [GAME_LOBBY] Game not found');
       return { success: false, error: 'Game not found' };
     }
 
+    console.log('📋 [GAME_LOBBY] Game found:', {
+      state: game.state,
+      hasChessState: !!game.chessState,
+      owner: game.owner?.substring(0, 8) + '...',
+      opponent: game.opponent?.substring(0, 8) + '...',
+      currentPlayer: game.chessState?.currentPlayer
+    });
+
     if (game.state !== GameState.STARTED) {
+      console.log('❌ [GAME_LOBBY] Game is not active, state:', game.state);
       return { success: false, error: 'Game is not active' };
     }
 
     if (!game.chessState) {
+      console.log('❌ [GAME_LOBBY] Chess state not initialized');
       return { success: false, error: 'Chess state not initialized' };
     }
 
@@ -173,26 +192,95 @@ export class GameLobby {
     const isOwner = game.owner.toLowerCase() === playerAddress.toLowerCase();
     const isOpponent = game.opponent && game.opponent.toLowerCase() === playerAddress.toLowerCase();
     
+    console.log('👤 [GAME_LOBBY] Player validation:', {
+      isOwner: isOwner,
+      isOpponent: isOpponent,
+      playerAddress: playerAddress.substring(0, 8) + '...',
+      gameOwner: game.owner?.substring(0, 8) + '...',
+      gameOpponent: game.opponent?.substring(0, 8) + '...'
+    });
+    
     if (!isOwner && !isOpponent) {
+      console.log('❌ [GAME_LOBBY] Player not in game');
       return { success: false, error: 'You are not a player in this game' };
     }
 
     // Determine player color
     const playerColor = isOwner ? 'white' : 'black';
+    console.log('🎨 [GAME_LOBBY] Player color determined:', {
+      playerColor: playerColor,
+      currentPlayer: game.chessState.currentPlayer,
+      isTurn: game.chessState.currentPlayer === playerColor
+    });
+
     if (game.chessState.currentPlayer !== playerColor) {
+      console.log('❌ [GAME_LOBBY] Not player\'s turn');
       return { success: false, error: 'Not your turn' };
     }
 
+    // Get piece info before move
+    const pieceBeforeMove = game.chessState.board[fromRow][fromCol].piece;
+    const targetPieceBeforeMove = game.chessState.board[toRow][toCol].piece;
+    
+    console.log('♟️ [GAME_LOBBY] Move details:', {
+      pieceMoving: pieceBeforeMove ? `${pieceBeforeMove.color} ${pieceBeforeMove.type}` : 'none',
+      targetSquare: targetPieceBeforeMove ? `${targetPieceBeforeMove.color} ${targetPieceBeforeMove.type}` : 'empty',
+      from: { row: fromRow, col: fromCol },
+      to: { row: toRow, col: toCol }
+    });
+
     // Make the move
+    console.log('🔄 [GAME_LOBBY] Calling ChessEngine.makeMove...');
     const chessEngine = ChessEngine.getInstance();
     const result = chessEngine.makeMove(game.chessState, fromRow, fromCol, toRow, toCol, promotionPiece as any);
     
+    console.log('⚙️ [GAME_LOBBY] ChessEngine result:', {
+      success: result.success,
+      hasNewGameState: !!result.newGameState,
+      hasMove: !!result.move,
+      error: result.error,
+      moveDetails: result.move ? {
+        from: result.move.from,
+        to: result.move.to,
+        piece: result.move.piece ? `${result.move.piece.color} ${result.move.piece.type}` : 'none',
+        capturedPiece: result.move.capturedPiece ? `${result.move.capturedPiece.color} ${result.move.capturedPiece.type}` : 'none'
+      } : null,
+      newGameStateDetails: result.newGameState ? {
+        currentPlayer: result.newGameState.currentPlayer,
+        gameStatus: result.newGameState.gameStatus,
+        fullMoveNumber: result.newGameState.fullMoveNumber,
+        winner: result.newGameState.winner,
+        moveHistoryLength: result.newGameState.moveHistory?.length || 0
+      } : null
+    });
+    
     if (result.success && result.newGameState) {
+      console.log('💾 [GAME_LOBBY] Updating game state in memory');
       game.chessState = result.newGameState;
       this.games.set(gameId, game);
+      console.log('✅ [GAME_LOBBY] Game state updated successfully');
+    } else {
+      console.log('❌ [GAME_LOBBY] Move failed, not updating game state');
     }
 
-    return result;
+    console.log('📤 [GAME_LOBBY] Returning result to route handler');
+    
+    // Map the ChessEngine result to the expected format
+    const mappedResult = {
+      success: result.success,
+      move: result.move,
+      gameState: result.newGameState, // Map newGameState to gameState
+      error: result.error
+    };
+    
+    console.log('🔄 [GAME_LOBBY] Mapped result:', {
+      success: mappedResult.success,
+      hasMove: !!mappedResult.move,
+      hasGameState: !!mappedResult.gameState,
+      error: mappedResult.error
+    });
+    
+    return mappedResult;
   }
 
   /**

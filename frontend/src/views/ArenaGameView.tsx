@@ -22,16 +22,31 @@ export const ArenaGameView: React.FC = () => {
       setLoading(true);
       setError(null);
       
+      console.log('🔄 Loading game state for game:', gameId.substring(0, 8) + '...');
       const response = await apiClient.getChessGameState(gameId);
+      
+      console.log('📊 Game state response:', {
+        success: response.success,
+        hasData: !!response.data,
+        error: response.error,
+        gameState: response.data ? {
+          currentPlayer: response.data.currentPlayer,
+          gameStatus: response.data.gameStatus,
+          fullMoveNumber: response.data.fullMoveNumber,
+          boardSize: response.data.board?.length + 'x' + response.data.board?.[0]?.length
+        } : null
+      });
       
       if (response.success && response.data) {
         setGameState(response.data);
         setSquares(response.data.board);
+        console.log('✅ Game state loaded successfully');
       } else {
+        console.error('❌ Failed to load game state:', response.error);
         setError(response.error || 'Failed to load game state');
       }
     } catch (err) {
-      console.error('Failed to load game state:', err);
+      console.error('💥 Exception loading game state:', err);
       setError('Failed to load game state');
     } finally {
       setLoading(false);
@@ -70,12 +85,18 @@ export const ArenaGameView: React.FC = () => {
         
         // Get valid moves for this piece
         try {
+          console.log('🔍 Getting valid moves for piece at:', { row, col, piece: square.piece });
           const response = await apiClient.getValidMoves(gameId, row, col);
+          console.log('📋 Valid moves response:', {
+            success: response.success,
+            validMovesCount: response.validMoves?.length || 0,
+            validMoves: response.validMoves
+          });
           if (response.success && response.validMoves) {
             setValidMoves(response.validMoves);
           }
         } catch (err) {
-          console.error('Failed to get valid moves:', err);
+          console.error('💥 Failed to get valid moves:', err);
         }
       }
       return;
@@ -93,20 +114,57 @@ export const ArenaGameView: React.FC = () => {
     const isValidMove = validMoves.some(move => move.row === row && move.col === col);
     
     if (isValidMove) {
+      const moveFrom = selectedSquare;
+      const moveTo = { row, col };
+      const piece = squares[moveFrom.row][moveFrom.col].piece;
+      
+      console.log('🎯 Attempting chess move:', {
+        gameId: gameId.substring(0, 8) + '...',
+        from: { row: moveFrom.row, col: moveFrom.col },
+        to: { row: moveTo.row, col: moveTo.col },
+        piece: piece ? `${piece.color} ${piece.type}` : 'none',
+        playerColor: playerColor,
+        currentPlayer: gameState?.currentPlayer
+      });
+      
       try {
-        const response = await apiClient.makeChessMove(gameId, selectedSquare, { row, col });
+        console.log('📤 Sending move request to server...');
+        const response = await apiClient.makeChessMove(gameId, moveFrom, moveTo);
+        
+        console.log('📥 Server response received:', {
+          success: response.success,
+          hasGameState: !!response.gameState,
+          error: response.error,
+          responseKeys: Object.keys(response)
+        });
         
         if (response.success && response.gameState) {
+          console.log('✅ Move successful! New game state:', {
+            currentPlayer: response.gameState.currentPlayer,
+            gameStatus: response.gameState.gameStatus,
+            fullMoveNumber: response.gameState.fullMoveNumber,
+            winner: response.gameState.winner,
+            boardSize: response.gameState.board?.length + 'x' + response.gameState.board?.[0]?.length
+          });
+          
           setGameState(response.gameState);
           setSquares(response.gameState.board);
           setSelectedSquare(null);
           setValidMoves([]);
         } else {
-          console.error('Move failed:', response.error);
+          console.error('❌ Move failed:', {
+            error: response.error,
+            success: response.success,
+            hasGameState: !!response.gameState
+          });
           setError(response.error || 'Move failed');
         }
       } catch (err) {
-        console.error('Failed to make move:', err);
+        console.error('💥 Exception during move:', {
+          error: err,
+          message: err instanceof Error ? err.message : 'Unknown error',
+          stack: err instanceof Error ? err.stack : undefined
+        });
         setError('Failed to make move');
       }
     } else {
@@ -116,12 +174,18 @@ export const ArenaGameView: React.FC = () => {
         setSelectedSquare({ row, col });
         
         try {
+          console.log('🔍 Getting valid moves for new piece at:', { row, col, piece: square.piece });
           const response = await apiClient.getValidMoves(gameId, row, col);
+          console.log('📋 Valid moves response (new piece):', {
+            success: response.success,
+            validMovesCount: response.validMoves?.length || 0,
+            validMoves: response.validMoves
+          });
           if (response.success && response.validMoves) {
             setValidMoves(response.validMoves);
           }
         } catch (err) {
-          console.error('Failed to get valid moves:', err);
+          console.error('💥 Failed to get valid moves (new piece):', err);
         }
       } else {
         setSelectedSquare(null);

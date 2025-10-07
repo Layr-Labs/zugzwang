@@ -354,7 +354,17 @@ router.post('/:gameId/chess/move', authenticateUser, (req: AuthenticatedRequest,
     const { from, to, promotionPiece } = req.body as MoveRequest;
     const userAddress = req.user?.address;
 
+    console.log('🎯 [SERVER] Chess move request received:', {
+      gameId: gameId.substring(0, 8) + '...',
+      userAddress: userAddress?.substring(0, 8) + '...',
+      from: from,
+      to: to,
+      promotionPiece: promotionPiece,
+      requestBody: req.body
+    });
+
     if (!userAddress) {
+      console.log('❌ [SERVER] User address not found');
       const response: MoveResponse = {
         success: false,
         error: 'User address not found'
@@ -364,6 +374,7 @@ router.post('/:gameId/chess/move', authenticateUser, (req: AuthenticatedRequest,
 
     if (!from || !to || typeof from.row !== 'number' || typeof from.col !== 'number' || 
         typeof to.row !== 'number' || typeof to.col !== 'number') {
+      console.log('❌ [SERVER] Invalid move coordinates:', { from, to });
       const response: MoveResponse = {
         success: false,
         error: 'Invalid move coordinates'
@@ -371,6 +382,7 @@ router.post('/:gameId/chess/move', authenticateUser, (req: AuthenticatedRequest,
       return res.status(400).json(response);
     }
 
+    console.log('🔄 [SERVER] Calling gameLobby.makeChessMove...');
     const result = gameLobby.makeChessMove(
       gameId, 
       from.row, 
@@ -381,7 +393,28 @@ router.post('/:gameId/chess/move', authenticateUser, (req: AuthenticatedRequest,
       promotionPiece
     );
     
+    console.log('📊 [SERVER] GameLobby result:', {
+      success: result.success,
+      hasMove: !!result.move,
+      hasGameState: !!result.gameState,
+      error: result.error,
+      moveDetails: result.move ? {
+        from: result.move.from,
+        to: result.move.to,
+        piece: result.move.piece ? `${result.move.piece.color} ${result.move.piece.type}` : 'none',
+        capturedPiece: result.move.capturedPiece ? `${result.move.capturedPiece.color} ${result.move.capturedPiece.type}` : 'none'
+      } : null,
+      gameStateDetails: result.gameState ? {
+        currentPlayer: result.gameState.currentPlayer,
+        gameStatus: result.gameState.gameStatus,
+        fullMoveNumber: result.gameState.fullMoveNumber,
+        winner: result.gameState.winner,
+        moveHistoryLength: result.gameState.moveHistory?.length || 0
+      } : null
+    });
+    
     if (!result.success) {
+      console.log('❌ [SERVER] Move failed, returning error response');
       const response: MoveResponse = {
         success: false,
         error: result.error
@@ -395,8 +428,27 @@ router.post('/:gameId/chess/move', authenticateUser, (req: AuthenticatedRequest,
       gameState: result.gameState
     };
     
+    console.log('✅ [SERVER] Sending successful response:', {
+      success: response.success,
+      hasMove: !!response.move,
+      hasGameState: !!response.gameState,
+      gameStateDetails: response.gameState ? {
+        currentPlayer: response.gameState.currentPlayer,
+        gameStatus: response.gameState.gameStatus,
+        fullMoveNumber: response.gameState.fullMoveNumber,
+        winner: response.gameState.winner,
+        boardSize: response.gameState.board?.length + 'x' + response.gameState.board?.[0]?.length
+      } : null,
+      responseSize: JSON.stringify(response).length + ' bytes'
+    });
+    
     res.json(response);
   } catch (error) {
+    console.error('💥 [SERVER] Exception in chess move endpoint:', {
+      error: error,
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    });
     const response: MoveResponse = {
       success: false,
       error: 'Internal server error'
