@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useGameState } from '../state/GameStateManager';
 import { useApiClient } from '../services/api';
 import ChessBoard, { ChessSquare } from '../components/chess/ChessBoard';
@@ -13,6 +13,41 @@ export const ArenaGameView: React.FC = () => {
   const [gameState, setGameState] = useState<ChessGameState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isPolling, setIsPolling] = useState(false);
+  const [isMakingMove, setIsMakingMove] = useState(false);
+  const previousGameStateRef = useRef<ChessGameState | null>(null);
+
+  // Extract game info early for use in useEffect
+  const isOwner = state.type === 'ARENA_GAME' ? state.isOwner : false;
+
+  // Helper function to compare board states
+  const boardsAreEqual = (board1: any[][], board2: any[][]) => {
+    if (!board1 || !board2) return false;
+    if (board1.length !== board2.length) return false;
+    
+    for (let row = 0; row < board1.length; row++) {
+      if (board1[row].length !== board2[row].length) return false;
+      for (let col = 0; col < board1[row].length; col++) {
+        const piece1 = board1[row][col].piece;
+        const piece2 = board2[row][col].piece;
+        
+        if (!piece1 && !piece2) continue;
+        if (!piece1 || !piece2) return false;
+        if (piece1.type !== piece2.type || piece1.color !== piece2.color) return false;
+      }
+    }
+    return true;
+  };
+
+  // Simple board state hash for comparison
+  const getBoardHash = (board: any[][]) => {
+    if (!board) return '';
+    return board.map(row => 
+      row.map(square => 
+        square.piece ? `${square.piece.color}-${square.piece.type}` : 'empty'
+      ).join('|')
+    ).join('||');
+  };
 
   const loadGameState = async () => {
     if (state.type !== 'ARENA_GAME') return;
@@ -38,9 +73,59 @@ export const ArenaGameView: React.FC = () => {
       });
       
       if (response.success && response.data) {
-        setGameState(response.data);
-        setSquares(response.data.board);
-        console.log('✅ Game state loaded successfully');
+        // Only update state if there are actual changes
+        const newGameState = response.data;
+        const newSquares = newGameState.board;
+        
+        // Use ref for more efficient comparison
+        const previousGameState = previousGameStateRef.current;
+        
+        // More aggressive change detection - only update if there are real changes
+        const hasGameStateChanged = !previousGameState || 
+          previousGameState.moveHistory.length !== newGameState.moveHistory.length ||
+          previousGameState.currentPlayer !== newGameState.currentPlayer ||
+          previousGameState.gameStatus !== newGameState.gameStatus ||
+          previousGameState.winner !== newGameState.winner ||
+          previousGameState.fullMoveNumber !== newGameState.fullMoveNumber;
+        
+        // For board changes, use hash comparison for more reliable detection
+        const hasBoardChanged = !previousGameState || 
+          getBoardHash(previousGameState.board) !== getBoardHash(newSquares);
+        
+        // Debug logging
+        console.log('🔍 [DEBUG] Change detection:', {
+          hasPreviousState: !!previousGameState,
+          hasGameStateChanged: hasGameStateChanged,
+          hasBoardChanged: hasBoardChanged,
+          previousMoveCount: previousGameState?.moveHistory.length || 0,
+          newMoveCount: newGameState.moveHistory.length,
+          previousPlayer: previousGameState?.currentPlayer,
+          newPlayer: newGameState.currentPlayer,
+          previousBoardHash: previousGameState ? getBoardHash(previousGameState.board).substring(0, 50) + '...' : 'none',
+          newBoardHash: getBoardHash(newSquares).substring(0, 50) + '...'
+        });
+        
+        const hasAnyChanges = hasGameStateChanged || hasBoardChanged;
+        
+        if (hasAnyChanges) {
+          console.log('🔄 [POLLING] Changes detected, updating UI');
+          
+          // Always update game state
+          setGameState(newGameState);
+          
+          // Only update squares if board actually changed
+          if (hasBoardChanged) {
+            console.log('🔄 [POLLING] Board changed, updating squares');
+            setSquares(newSquares);
+          } else {
+            console.log('🔄 [POLLING] Board unchanged, keeping current squares');
+          }
+          
+          previousGameStateRef.current = newGameState;
+          console.log('✅ Game state updated successfully');
+        } else {
+          console.log('🔄 [POLLING] No changes detected, skipping UI update');
+        }
       } else {
         console.error('❌ Failed to load game state:', response.error);
         setError(response.error || 'Failed to load game state');
@@ -60,12 +145,51 @@ export const ArenaGameView: React.FC = () => {
     }
   }, [state.type, state.type === 'ARENA_GAME' ? state.gameId : null]);
 
+  // Poll for game state updates every 2 seconds when game is active
+  useEffect(() => {
+    if (state.type !== 'ARENA_GAME' || !gameState) return;
+
+    // Only poll if game is still active (not finished)
+    if (gameState.gameStatus === 'checkmate' || gameState.gameStatus === 'stalemate' || gameState.winner) {
+      console.log('🔄 [POLLING] Game finished, stopping polling');
+      setIsPolling(false);
+      return;
+    }
+
+    console.log('🔄 [POLLING] Starting game state polling...');
+    setIsPolling(true);
+    
+    const interval = setInterval(() => {
+      // Skip polling if user is making a move
+      if (isMakingMove) {
+        console.log('🔄 [POLLING] Skipping poll - user making move');
+        return;
+      }
+      
+      // Only poll if it's not the user's turn (to avoid unnecessary calls)
+      const playerColor = isOwner ? 'white' : 'black';
+      if (gameState.currentPlayer === playerColor) {
+        console.log('🔄 [POLLING] Skipping poll - user\'s turn');
+        return;
+      }
+      
+      console.log('🔄 [POLLING] Polling for game state updates...');
+      loadGameState();
+    }, 2000); // Poll every 2 seconds
+
+    return () => {
+      console.log('🔄 [POLLING] Stopping game state polling');
+      setIsPolling(false);
+      clearInterval(interval);
+    };
+  }, [state.type, state.type === 'ARENA_GAME' ? state.gameId : null, gameState?.gameStatus, gameState?.winner, gameState?.currentPlayer, isOwner, isMakingMove]);
+
   // Only render if we're in ARENA_GAME state
   if (state.type !== 'ARENA_GAME') {
     return null;
   }
 
-  const { gameId, userAddress, opponentAddress, wagerAmount, isOwner } = state;
+  const { gameId, userAddress, opponentAddress, wagerAmount } = state;
 
   const handleSquareClick = async (row: number, col: number) => {
     if (!gameState || !userAddress) return;
@@ -128,6 +252,7 @@ export const ArenaGameView: React.FC = () => {
       });
       
       try {
+        setIsMakingMove(true);
         console.log('📤 Sending move request to server...');
         const response = await apiClient.makeChessMove(gameId, moveFrom, moveTo);
         
@@ -149,6 +274,7 @@ export const ArenaGameView: React.FC = () => {
           
           setGameState(response.gameState);
           setSquares(response.gameState.board);
+          previousGameStateRef.current = response.gameState; // Update ref
           setSelectedSquare(null);
           setValidMoves([]);
         } else {
@@ -166,6 +292,8 @@ export const ArenaGameView: React.FC = () => {
           stack: err instanceof Error ? err.stack : undefined
         });
         setError('Failed to make move');
+      } finally {
+        setIsMakingMove(false);
       }
     } else {
       // Try to select a different piece
@@ -265,19 +393,35 @@ export const ArenaGameView: React.FC = () => {
 
         {/* Chess Board */}
         <div className="flex justify-center">
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            {loading ? (
+          <div className="bg-white rounded-lg shadow-lg p-6 relative">
+            {/* Only show board when we have valid squares data */}
+            {squares && squares.length > 0 ? (
+              <>
+                <ChessBoard
+                  squares={squares}
+                  onSquareClick={handleSquareClick}
+                  size={480}
+                  validMoves={validMoves}
+                  selectedSquare={selectedSquare}
+                />
+                
+                {/* Polling indicator below the board */}
+                {isPolling && (
+                  <div className="flex items-center justify-center mt-4 text-sm text-gray-500">
+                    <div className="animate-pulse flex items-center gap-1">
+                      <div className="w-1 h-1 bg-blue-500 rounded-full animate-bounce"></div>
+                      <div className="w-1 h-1 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                      <div className="w-1 h-1 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                      <span className="ml-2">Live updates</span>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              /* Initial loading - show spinner until board data is loaded */
               <div className="flex items-center justify-center" style={{ width: 480, height: 480 }}>
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
               </div>
-            ) : (
-              <ChessBoard
-                squares={squares}
-                onSquareClick={handleSquareClick}
-                size={480}
-                validMoves={validMoves}
-                selectedSquare={selectedSquare}
-              />
             )}
           </div>
         </div>

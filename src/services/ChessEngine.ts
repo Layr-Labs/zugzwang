@@ -74,32 +74,85 @@ export class ChessEngine {
       return [];
     }
 
+    console.log('🔍 [CHESS_ENGINE] Getting valid moves for piece:', {
+      piece: `${square.piece.color} ${square.piece.type}`,
+      position: { row, col }
+    });
+
+    // Step 1: Get all raw moves for the piece
+    const rawMoves = this.getRawMoves(gameState, row, col);
+    console.log('📋 [CHESS_ENGINE] Raw moves found:', rawMoves.length);
+
+    // Step 2: Filter out moves that would put the king in check
+    const validMoves: { row: number; col: number }[] = [];
+    
+    for (const move of rawMoves) {
+      console.log('🔍 [CHESS_ENGINE] Checking move:', move);
+      
+      // Simulate the move
+      const tempGameState = this.deepCopyGameState(gameState);
+      const piece = tempGameState.board[row][col].piece!;
+      
+      // Make the move on the temporary board
+      tempGameState.board[move.row][move.col].piece = piece;
+      tempGameState.board[row][col].piece = null;
+      
+      // Check if this move puts the king in check
+      const kingInCheck = this.isKingInCheckAfterMove(tempGameState, piece.color);
+      
+      if (!kingInCheck) {
+        console.log('✅ [CHESS_ENGINE] Move is valid:', move);
+        validMoves.push(move);
+      } else {
+        console.log('❌ [CHESS_ENGINE] Move puts king in check, removing:', move);
+      }
+    }
+
+    console.log('📊 [CHESS_ENGINE] Final valid moves:', validMoves.length);
+    return validMoves;
+  }
+
+  /**
+   * Get raw moves for a piece without check validation (used for check detection)
+   */
+  private getRawMoves(gameState: ChessGameState, row: number, col: number): { row: number; col: number }[] {
+    const square = gameState.board[row][col];
+    if (!square.piece) {
+      return [];
+    }
+
     const validMoves: { row: number; col: number }[] = [];
     const piece = square.piece;
 
-    switch (piece.type) {
-      case 'pawn':
-        this.getPawnMoves(gameState, row, col, validMoves);
-        break;
-      case 'rook':
-        this.getRookMoves(gameState, row, col, validMoves);
-        break;
-      case 'knight':
-        this.getKnightMoves(gameState, row, col, validMoves);
-        break;
-      case 'bishop':
-        this.getBishopMoves(gameState, row, col, validMoves);
-        break;
-      case 'queen':
-        this.getQueenMoves(gameState, row, col, validMoves);
-        break;
-      case 'king':
-        this.getKingMoves(gameState, row, col, validMoves);
-        break;
+    // Use a simplified approach to avoid circular dependencies
+    try {
+      switch (piece.type) {
+        case 'pawn':
+          this.getPawnMoves(gameState, row, col, validMoves);
+          break;
+        case 'rook':
+          this.getRookMoves(gameState, row, col, validMoves);
+          break;
+        case 'knight':
+          this.getKnightMoves(gameState, row, col, validMoves);
+          break;
+        case 'bishop':
+          this.getBishopMoves(gameState, row, col, validMoves);
+          break;
+        case 'queen':
+          this.getQueenMoves(gameState, row, col, validMoves);
+          break;
+        case 'king':
+          this.getKingMoves(gameState, row, col, validMoves);
+          break;
+      }
+    } catch (error) {
+      console.error('💥 [CHESS_ENGINE] Error in getRawMoves:', error);
+      return [];
     }
 
-    // Filter out moves that would put the king in check
-    return validMoves.filter(move => !this.wouldPutKingInCheck(gameState, row, col, move.row, move.col));
+    // Return raw moves without check validation
+    return validMoves;
   }
 
   /**
@@ -132,6 +185,13 @@ export class ChessEngine {
     if (!isValidMove) {
       console.log('❌ [CHESS_ENGINE] Invalid move - not in valid moves list');
       return { success: false, error: 'Invalid move' };
+    }
+
+    // Additional validation: prevent capturing the king
+    const targetPiece = gameState.board[toRow][toCol].piece;
+    if (targetPiece && targetPiece.type === 'king') {
+      console.log('❌ [CHESS_ENGINE] Invalid move - cannot capture king');
+      return { success: false, error: 'Cannot capture king' };
     }
 
     // Create new game state
@@ -217,36 +277,87 @@ export class ChessEngine {
     const tempGameState = this.deepCopyGameState(gameState);
     const piece = tempGameState.board[fromRow][fromCol].piece!;
     
+    console.log('🔍 [CHESS_ENGINE] Checking if move would put king in check:', {
+      piece: `${piece.color} ${piece.type}`,
+      from: { row: fromRow, col: fromCol },
+      to: { row: toRow, col: toCol }
+    });
+    
     // Make the move temporarily
     tempGameState.board[toRow][toCol].piece = piece;
     tempGameState.board[fromRow][fromCol].piece = null;
-    tempGameState.currentPlayer = piece.color;
 
-    // Check if king is in check
-    return this.isKingInCheck(tempGameState, piece.color);
+    // Check if the moving player's king is in check after the move
+    const wouldBeInCheck = this.isKingInCheckAfterMove(tempGameState, piece.color);
+    console.log('🔍 [CHESS_ENGINE] Move would put king in check:', wouldBeInCheck);
+    
+    return wouldBeInCheck;
   }
 
   /**
-   * Check if the king is in check
+   * Check if the king is in check after a move (simple, no circular dependencies)
    */
-  private isKingInCheck(gameState: ChessGameState, color: PieceColor): boolean {
+  private isKingInCheckAfterMove(gameState: ChessGameState, color: PieceColor): boolean {
     const kingPosition = this.findKing(gameState, color);
-    if (!kingPosition) return false;
+    if (!kingPosition) {
+      return false;
+    }
+
+    console.log('🔍 [CHESS_ENGINE] Checking if king is in check after move:', {
+      color: color,
+      kingPosition: kingPosition
+    });
 
     // Check if any opponent piece can attack the king
     const opponentColor = color === 'white' ? 'black' : 'white';
+    
     for (let row = 0; row < 8; row++) {
       for (let col = 0; col < 8; col++) {
         const square = gameState.board[row][col];
         if (square.piece && square.piece.color === opponentColor) {
-          const validMoves = this.getValidMoves(gameState, row, col);
-          if (validMoves.some(move => move.row === kingPosition.row && move.col === kingPosition.col)) {
+          // Check if this piece can attack the king using simple attack patterns
+          if (this.canPieceAttackSquare(gameState, row, col, kingPosition.row, kingPosition.col)) {
+            console.log('⚠️ [CHESS_ENGINE] King is in check!', {
+              attackingPiece: `${square.piece.color} ${square.piece.type}`,
+              attackingFrom: { row, col },
+              kingPosition: kingPosition
+            });
             return true;
           }
         }
       }
     }
+    
+    console.log('✅ [CHESS_ENGINE] King is not in check');
     return false;
+  }
+
+  /**
+   * Check if a piece can attack a specific square (simple attack patterns)
+   */
+  private canPieceAttackSquare(gameState: ChessGameState, fromRow: number, fromCol: number, toRow: number, toCol: number): boolean {
+    const piece = gameState.board[fromRow][fromCol].piece;
+    if (!piece) return false;
+
+    const rowDiff = toRow - fromRow;
+    const colDiff = toCol - fromCol;
+
+    switch (piece.type) {
+      case 'pawn':
+        return this.canPawnAttackSquare(fromRow, fromCol, toRow, toCol, piece.color);
+      case 'rook':
+        return this.canRookAttackSquare(gameState, fromRow, fromCol, toRow, toCol);
+      case 'knight':
+        return this.canKnightAttackSquare(fromRow, fromCol, toRow, toCol);
+      case 'bishop':
+        return this.canBishopAttackSquare(gameState, fromRow, fromCol, toRow, toCol);
+      case 'queen':
+        return this.canQueenAttackSquare(gameState, fromRow, fromCol, toRow, toCol);
+      case 'king':
+        return this.canKingAttackSquare(fromRow, fromCol, toRow, toCol);
+      default:
+        return false;
+    }
   }
 
   /**
@@ -269,7 +380,7 @@ export class ChessEngine {
    */
   private updateGameStatus(gameState: ChessGameState): void {
     const currentPlayer = gameState.currentPlayer;
-    const isInCheck = this.isKingInCheck(gameState, currentPlayer);
+    const isInCheck = this.isKingInCheckAfterMove(gameState, currentPlayer);
     
     if (isInCheck) {
       // Check if it's checkmate
@@ -447,7 +558,7 @@ export class ChessEngine {
     }
 
     // Castling
-    if (!this.isKingInCheck(gameState, piece.color)) {
+    if (!this.isKingInCheckAfterMove(gameState, piece.color)) {
       const castlingRights = gameState.castlingRights[piece.color];
       
       // King-side castling
@@ -498,6 +609,75 @@ export class ChessEngine {
 
   private isValidSquare(row: number, col: number): boolean {
     return row >= 0 && row < 8 && col >= 0 && col < 8;
+  }
+
+  // Attack pattern methods for each piece type
+  private canPawnAttackSquare(fromRow: number, fromCol: number, toRow: number, toCol: number, color: PieceColor): boolean {
+    const direction = color === 'white' ? -1 : 1;
+    const rowDiff = toRow - fromRow;
+    const colDiff = Math.abs(toCol - fromCol);
+    
+    // Pawns attack diagonally forward
+    return rowDiff === direction && colDiff === 1;
+  }
+
+  private canRookAttackSquare(gameState: ChessGameState, fromRow: number, fromCol: number, toRow: number, toCol: number): boolean {
+    // Must be on same row or column
+    if (fromRow !== toRow && fromCol !== toCol) return false;
+    
+    // Check if path is clear
+    return this.isPathClear(gameState, fromRow, fromCol, toRow, toCol);
+  }
+
+  private canKnightAttackSquare(fromRow: number, fromCol: number, toRow: number, toCol: number): boolean {
+    const rowDiff = Math.abs(toRow - fromRow);
+    const colDiff = Math.abs(toCol - fromCol);
+    
+    // Knight moves in L-shape
+    return (rowDiff === 2 && colDiff === 1) || (rowDiff === 1 && colDiff === 2);
+  }
+
+  private canBishopAttackSquare(gameState: ChessGameState, fromRow: number, fromCol: number, toRow: number, toCol: number): boolean {
+    const rowDiff = Math.abs(toRow - fromRow);
+    const colDiff = Math.abs(toCol - fromCol);
+    
+    // Must be diagonal
+    if (rowDiff !== colDiff) return false;
+    
+    // Check if path is clear
+    return this.isPathClear(gameState, fromRow, fromCol, toRow, toCol);
+  }
+
+  private canQueenAttackSquare(gameState: ChessGameState, fromRow: number, fromCol: number, toRow: number, toCol: number): boolean {
+    // Queen combines rook and bishop moves
+    return this.canRookAttackSquare(gameState, fromRow, fromCol, toRow, toCol) ||
+           this.canBishopAttackSquare(gameState, fromRow, fromCol, toRow, toCol);
+  }
+
+  private canKingAttackSquare(fromRow: number, fromCol: number, toRow: number, toCol: number): boolean {
+    const rowDiff = Math.abs(toRow - fromRow);
+    const colDiff = Math.abs(toCol - fromCol);
+    
+    // King moves one square in any direction
+    return rowDiff <= 1 && colDiff <= 1 && (rowDiff > 0 || colDiff > 0);
+  }
+
+  private isPathClear(gameState: ChessGameState, fromRow: number, fromCol: number, toRow: number, toCol: number): boolean {
+    const rowStep = fromRow === toRow ? 0 : (toRow - fromRow) / Math.abs(toRow - fromRow);
+    const colStep = fromCol === toCol ? 0 : (toCol - fromCol) / Math.abs(toCol - fromCol);
+    
+    let currentRow = fromRow + rowStep;
+    let currentCol = fromCol + colStep;
+    
+    while (currentRow !== toRow || currentCol !== toCol) {
+      if (gameState.board[currentRow][currentCol].piece) {
+        return false; // Path is blocked
+      }
+      currentRow += rowStep;
+      currentCol += colStep;
+    }
+    
+    return true; // Path is clear
   }
 
   private deepCopyGameState(gameState: ChessGameState): ChessGameState {
