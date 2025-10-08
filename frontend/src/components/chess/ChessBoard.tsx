@@ -27,7 +27,7 @@ const ChessBoard: React.FC<ChessBoardProps> = ({
 
   const getSquareColor = (row: number, col: number) => {
     const isLight = (row + col) % 2 === 0;
-    return isLight ? '#f0d9b5' : '#b58863';
+    return isLight ? '#EBEBD0' : '#769656';
   };
 
   const getSquareHighlightColor = (row: number, col: number, square: ChessSquare) => {
@@ -63,7 +63,6 @@ const ChessBoard: React.FC<ChessBoardProps> = ({
           width: squareSize,
           height: squareSize,
           backgroundColor: highlightColor !== 'transparent' ? highlightColor : backgroundColor,
-          border: '1px solid #8b4513',
         }}
         onClick={() => onSquareClick?.(row, col)}
       >
@@ -94,7 +93,7 @@ const ChessBoard: React.FC<ChessBoardProps> = ({
   };
 
   return (
-    <div className="inline-block border-4 border-amber-800 rounded-lg shadow-lg">
+    <div className="inline-block">
       {renderBoard()}
     </div>
   );
