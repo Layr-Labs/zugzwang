@@ -559,4 +559,49 @@ router.post('/:gameId/chess/move', authenticateUser, (req: AuthenticatedRequest,
   }
 });
 
+// Get settled games for a user
+router.get('/settled', async (req: Request, res: Response) => {
+  try {
+    const userAddress = req.query.userAddress as string;
+    
+    if (!userAddress) {
+      return res.status(400).json({
+        success: false,
+        error: 'User address is required'
+      });
+    }
+
+    console.log('📊 [GAME_ROUTES] Getting settled games for user:', userAddress.substring(0, 8) + '...');
+    
+    const settledGames = gameLobby.getSettledGames(userAddress);
+    
+    console.log('📊 [GAME_ROUTES] Settled games found:', {
+      userAddress: userAddress.substring(0, 8) + '...',
+      count: settledGames.length,
+      games: settledGames.map(g => ({
+        id: g.id.substring(0, 8) + '...',
+        state: g.state,
+        winner: g.winner,
+        owner: g.owner?.substring(0, 8) + '...',
+        opponent: g.opponent?.substring(0, 8) + '...'
+      }))
+    });
+
+    res.json({
+      success: true,
+      data: settledGames
+    });
+  } catch (error) {
+    console.error('💥 [GAME_ROUTES] Error getting settled games:', {
+      error: error,
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
 export default router;

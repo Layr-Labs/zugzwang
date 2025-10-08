@@ -251,6 +251,17 @@ export class GameLobby {
   }
 
   /**
+   * Get settled games (SETTLED state where user was owner or opponent)
+   */
+  public getSettledGames(userAddress: string): Game[] {
+    return Array.from(this.games.values()).filter(
+      game => game.state === GameState.SETTLED && 
+              (game.owner.toLowerCase() === userAddress.toLowerCase() || 
+               (game.opponent && game.opponent.toLowerCase() === userAddress.toLowerCase()))
+    );
+  }
+
+  /**
    * Get games where user was invited as opponent (WAITING state)
    */
   public getGameInvitations(userAddress: string): Game[] {
@@ -384,6 +395,19 @@ export class GameLobby {
     if (result.success && result.newGameState) {
       console.log('💾 [GAME_LOBBY] Updating game state in memory');
       game.chessState = result.newGameState;
+      
+      // Check if the chess game is in a terminal state (checkmate or stalemate)
+      if (result.newGameState.gameStatus === 'checkmate' || result.newGameState.gameStatus === 'stalemate') {
+        console.log('🏁 [GAME_LOBBY] Chess game ended, updating main game state to SETTLED');
+        game.state = GameState.SETTLED;
+        game.winner = result.newGameState.winner;
+        console.log('🎯 [GAME_LOBBY] Game settled:', {
+          gameStatus: result.newGameState.gameStatus,
+          winner: result.newGameState.winner,
+          gameState: game.state
+        });
+      }
+      
       this.games.set(gameId, game);
       console.log('✅ [GAME_LOBBY] Game state updated successfully');
     } else {

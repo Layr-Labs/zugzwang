@@ -113,5 +113,9 @@ export const useApiClient = () => {
         }),
       });
     },
+
+    getSettledGames: async (userAddress: string) => {
+      return makeRequest(`/api/games/settled?userAddress=${encodeURIComponent(userAddress)}`);
+    },
   }), [getAccessToken]);
 };

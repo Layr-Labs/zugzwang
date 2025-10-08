@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useReducer, ReactNode } from 'react';
-import { GameState, GameStateType, createLogInState, createMenuState, createBrowseGamesState, createCreateGameState, createArenaGameState, CreateGameState } from './GameState';
+import { GameState, GameStateType, createLogInState, createMenuState, createBrowseGamesState, createCreateGameState, createArenaGameState, createGameHistoryState, CreateGameState } from './GameState';
 
 interface GameStateContextType {
   state: GameState;
@@ -16,6 +16,7 @@ type GameStateAction =
   | { type: 'NAVIGATE_TO_CREATE_GAME'; userAddress: string }
   | { type: 'NAVIGATE_TO_MENU'; userAddress: string }
   | { type: 'NAVIGATE_TO_ARENA_GAME'; gameId: string; userAddress: string; opponentAddress?: string; wagerAmount: string; isOwner: boolean }
+  | { type: 'SET_GAME_HISTORY' }
   | { type: 'UPDATE_WAGER_AMOUNT'; wagerAmount: string }
   | { type: 'UPDATE_OPPONENT_ADDRESS'; opponentAddress: string }
   | { type: 'VALIDATE_FORM' };
@@ -73,6 +74,12 @@ const gameStateReducer = (state: GameState, action: GameStateAction): GameState 
     
     case 'NAVIGATE_TO_ARENA_GAME':
       return createArenaGameState(action.gameId, action.userAddress, action.opponentAddress, action.wagerAmount, action.isOwner, false);
+    
+    case 'SET_GAME_HISTORY':
+      if (state.type === GameStateType.BROWSE_GAMES) {
+        return createGameHistoryState(state.userAddress, false);
+      }
+      return state;
     
     case 'UPDATE_WAGER_AMOUNT':
       if (state.type === GameStateType.CREATE_GAME) {

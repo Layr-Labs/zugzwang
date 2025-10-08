@@ -7,6 +7,7 @@ import { WelcomeView } from './views/WelcomeView';
 import { BrowseGamesView } from './views/BrowseGamesView';
 import { CreateGameView } from './views/CreateGameView';
 import { ArenaGameView } from './views/ArenaGameView';
+import GameHistoryView from './views/GameHistoryView';
 import { ConfigDisplay } from './components/ConfigDisplay';
 import { validateConfig, logConfig } from './config';
 
@@ -63,6 +64,13 @@ const App: React.FC = () => {
       return (
         <>
           <ArenaGameView />
+          <ConfigDisplay />
+        </>
+      );
+    } else if (state.type === GameStateType.GAME_HISTORY) {
+      return (
+        <>
+          <GameHistoryView />
           <ConfigDisplay />
         </>
       );

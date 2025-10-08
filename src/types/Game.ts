@@ -17,6 +17,7 @@ export interface Game {
   startedAt?: Date;
   settledAt?: Date;
   chessState?: ChessGameState; // Chess game state when game is STARTED
+  winner?: 'white' | 'black'; // Winner of the chess game when settled
 }
 
 export interface GameResponse {
@@ -28,6 +29,7 @@ export interface GameResponse {
   createdAt: string; // ISO string
   startedAt?: string;
   settledAt?: string;
+  winner?: 'white' | 'black'; // Winner of the chess game when settled
 }
 
 export interface CreateGameRequest {
@@ -66,6 +68,7 @@ export function serializeGame(game: Game): GameResponse {
     state: game.state,
     createdAt: game.createdAt.toISOString(),
     startedAt: game.startedAt?.toISOString(),
-    settledAt: game.settledAt?.toISOString()
+    settledAt: game.settledAt?.toISOString(),
+    winner: game.winner
   };
 }

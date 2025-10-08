@@ -2,17 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { useGameState } from '../state/GameStateManager';
 import { useApiClient } from '../services/api';
-
-interface Game {
-  id: string;
-  owner: string;
-  opponent: string | null;
-  wager: string;
-  state: 'CREATED' | 'STARTED' | 'SETTLED';
-  createdAt: string;
-  startedAt?: string;
-  settledAt?: string;
-}
+import { Game } from '../types/Game';
 
 interface GameData {
   openGames: Game[];
@@ -252,6 +242,12 @@ export const BrowseGamesView: React.FC = () => {
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-4xl font-bold text-gray-900">Browse Games</h1>
             <div className="flex space-x-2">
+              <button
+                onClick={() => dispatch({ type: 'SET_GAME_HISTORY' })}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+              >
+                Game History
+              </button>
               <button
                 onClick={handleRefresh}
                 disabled={loading}

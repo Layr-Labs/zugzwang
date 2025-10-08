@@ -3,7 +3,8 @@ export enum GameStateType {
   MENU = 'MENU',
   BROWSE_GAMES = 'BROWSE_GAMES',
   CREATE_GAME = 'CREATE_GAME',
-  ARENA_GAME = 'ARENA_GAME'
+  ARENA_GAME = 'ARENA_GAME',
+  GAME_HISTORY = 'GAME_HISTORY'
 }
 
 export interface LogInState {
@@ -47,7 +48,14 @@ export interface ArenaGameState {
   error?: string;
 }
 
-export type GameState = LogInState | MenuState | BrowseGamesState | CreateGameState | ArenaGameState;
+export interface GameHistoryState {
+  type: GameStateType.GAME_HISTORY;
+  userAddress?: string;
+  isLoading: boolean;
+  error?: string;
+}
+
+export type GameState = LogInState | MenuState | BrowseGamesState | CreateGameState | ArenaGameState | GameHistoryState;
 
 export const createLogInState = (isLoading: boolean = false, error?: string): LogInState => ({
   type: GameStateType.LOGIN,
@@ -86,6 +94,13 @@ export const createArenaGameState = (gameId: string, userAddress?: string, oppon
   opponentAddress,
   wagerAmount,
   isOwner,
+  isLoading,
+  error
+});
+
+export const createGameHistoryState = (userAddress?: string, isLoading: boolean = false, error?: string): GameHistoryState => ({
+  type: GameStateType.GAME_HISTORY,
+  userAddress,
   isLoading,
   error
 });
