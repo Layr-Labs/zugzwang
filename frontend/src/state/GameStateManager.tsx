@@ -15,7 +15,7 @@ type GameStateAction =
   | { type: 'NAVIGATE_TO_BROWSE_GAMES'; userAddress: string }
   | { type: 'NAVIGATE_TO_CREATE_GAME'; userAddress: string }
   | { type: 'NAVIGATE_TO_MENU'; userAddress: string }
-  | { type: 'NAVIGATE_TO_ARENA_GAME'; gameId: string; userAddress: string; opponentAddress?: string; wagerAmount: string; isOwner: boolean }
+  | { type: 'NAVIGATE_TO_ARENA_GAME'; gameId: string; userAddress: string; opponentAddress?: string; wagerAmount: string; networkType?: string; chainId?: number; isOwner: boolean }
   | { type: 'SET_GAME_HISTORY' }
   | { type: 'UPDATE_WAGER_AMOUNT'; wagerAmount: string }
   | { type: 'UPDATE_OPPONENT_ADDRESS'; opponentAddress: string }
@@ -73,7 +73,7 @@ const gameStateReducer = (state: GameState, action: GameStateAction): GameState 
       return createMenuState(action.userAddress, false);
     
     case 'NAVIGATE_TO_ARENA_GAME':
-      return createArenaGameState(action.gameId, action.userAddress, action.opponentAddress, action.wagerAmount, action.isOwner, false);
+      return createArenaGameState(action.gameId, action.userAddress, action.opponentAddress, action.wagerAmount, action.networkType, action.chainId, action.isOwner, false);
     
     case 'SET_GAME_HISTORY':
       if (state.type === GameStateType.BROWSE_GAMES) {

@@ -1,18 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useGameState } from '../state/GameStateManager';
 import { useApiClient } from '../services/api';
-
-interface Game {
-  id: string;
-  owner: string;
-  opponent: string | null;
-  wager: string;
-  state: 'CREATED' | 'STARTED' | 'SETTLED';
-  createdAt: string;
-  startedAt?: string;
-  settledAt?: string;
-  winner?: 'white' | 'black';
-}
+import { Game } from '../types/Game';
+import { getChainName } from '../config/chains';
 
 interface GameHistoryViewProps {}
 
@@ -158,6 +148,9 @@ const GameHistoryView: React.FC<GameHistoryViewProps> = () => {
                         Wager
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Network
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Result
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -176,6 +169,9 @@ const GameHistoryView: React.FC<GameHistoryViewProps> = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {formatWager(game.wager)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {getChainName(game.networkType, game.chainId)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`text-sm font-semibold ${getResultColor(game)}`}>

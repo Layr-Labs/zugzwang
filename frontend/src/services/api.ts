@@ -35,12 +35,14 @@ export const useApiClient = () => {
   };
 
   return useMemo(() => ({
-    createGame: async (wagerAmount: string, opponentAddress?: string) => {
+    createGame: async (wagerAmount: string, opponentAddress?: string, networkType: 'EVM' | 'SOL' = 'EVM', chainId?: number) => {
       return makeRequest('/api/games/create', {
         method: 'POST',
         body: JSON.stringify({
           wagerAmount,
           opponent: opponentAddress || null,
+          networkType,
+          chainId,
         }),
       });
     },

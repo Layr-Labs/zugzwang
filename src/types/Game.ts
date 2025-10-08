@@ -5,6 +5,11 @@ export enum GameState {
   SETTLED = 'SETTLED'     // Game completed
 }
 
+export enum NetworkType {
+  EVM = 'EVM',
+  SOL = 'SOL'
+}
+
 import { ChessGameState } from './Chess';
 
 export interface Game {
@@ -13,6 +18,8 @@ export interface Game {
   opponent: string | null; // Ethereum address or null for open games
   wager: bigint; // Amount in wei
   state: GameState;
+  networkType: NetworkType; // EVM or SOL
+  chainId?: number; // Chain ID for EVM networks, undefined for SOL
   createdAt: Date;
   startedAt?: Date;
   settledAt?: Date;
@@ -26,6 +33,8 @@ export interface GameResponse {
   opponent: string | null;
   wager: string; // Serialized as string for JSON
   state: GameState;
+  networkType: NetworkType;
+  chainId?: number;
   createdAt: string; // ISO string
   startedAt?: string;
   settledAt?: string;
@@ -35,6 +44,8 @@ export interface GameResponse {
 export interface CreateGameRequest {
   opponent?: string; // Optional required opponent
   wagerAmount: string; // Wager amount in ETH as string (will be converted to BigInt wei)
+  networkType: NetworkType; // EVM or SOL
+  chainId?: number; // Chain ID for EVM networks
 }
 
 export interface JoinGameRequest {
@@ -66,6 +77,8 @@ export function serializeGame(game: Game): GameResponse {
     opponent: game.opponent,
     wager: game.wager.toString(),
     state: game.state,
+    networkType: game.networkType,
+    chainId: game.chainId,
     createdAt: game.createdAt.toISOString(),
     startedAt: game.startedAt?.toISOString(),
     settledAt: game.settledAt?.toISOString(),

@@ -3,6 +3,7 @@ import { useGameState } from '../state/GameStateManager';
 import { useApiClient } from '../services/api';
 import ChessBoard, { ChessSquare } from '../components/chess/ChessBoard';
 import { ChessGameState } from '../types/Chess';
+import { getChainName } from '../config/chains';
 
 export const ArenaGameView: React.FC = () => {
   const { state, dispatch } = useGameState();
@@ -19,6 +20,46 @@ export const ArenaGameView: React.FC = () => {
 
   // Extract game info early for use in useEffect
   const isOwner = state.type === 'ARENA_GAME' ? state.isOwner : false;
+  const playerColor = isOwner ? 'white' : 'black';
+  const isBoardFlipped = playerColor === 'black'; // Flip board for black players
+
+  // Coordinate transformation functions for board orientation
+  const transformDisplayToBackend = (displayRow: number, displayCol: number) => {
+    if (!isBoardFlipped) {
+      return { row: displayRow, col: displayCol };
+    }
+    // Flip coordinates for black players
+    return { row: 7 - displayRow, col: 7 - displayCol };
+  };
+
+  const transformBackendToDisplay = (backendRow: number, backendCol: number) => {
+    if (!isBoardFlipped) {
+      return { row: backendRow, col: backendCol };
+    }
+    // Flip coordinates for black players
+    return { row: 7 - backendRow, col: 7 - backendCol };
+  };
+
+  // Transform the entire board for display
+  const transformBoardForDisplay = (backendBoard: ChessSquare[][]) => {
+    if (!isBoardFlipped) {
+      return backendBoard;
+    }
+    
+    // Create a new board with flipped coordinates
+    const displayBoard: ChessSquare[][] = Array(8).fill(null).map(() => 
+      Array(8).fill(null).map(() => ({ piece: null }))
+    );
+    
+    for (let row = 0; row < 8; row++) {
+      for (let col = 0; col < 8; col++) {
+        const displayCoords = transformBackendToDisplay(row, col);
+        displayBoard[displayCoords.row][displayCoords.col] = backendBoard[row][col];
+      }
+    }
+    
+    return displayBoard;
+  };
 
   // Helper function to compare board states
   const boardsAreEqual = (board1: any[][], board2: any[][]) => {
@@ -75,7 +116,8 @@ export const ArenaGameView: React.FC = () => {
       if (response.success && response.data) {
         // Only update state if there are actual changes
         const newGameState = response.data;
-        const newSquares = newGameState.board;
+        const backendBoard = newGameState.board;
+        const newSquares = transformBoardForDisplay(backendBoard);
         
         // Use ref for more efficient comparison
         const previousGameState = previousGameStateRef.current;
@@ -90,7 +132,7 @@ export const ArenaGameView: React.FC = () => {
         
         // For board changes, use hash comparison for more reliable detection
         const hasBoardChanged = !previousGameState || 
-          getBoardHash(previousGameState.board) !== getBoardHash(newSquares);
+          getBoardHash(previousGameState.board) !== getBoardHash(backendBoard);
         
         // Debug logging
         console.log('🔍 [DEBUG] Change detection:', {
@@ -102,7 +144,7 @@ export const ArenaGameView: React.FC = () => {
           previousPlayer: previousGameState?.currentPlayer,
           newPlayer: newGameState.currentPlayer,
           previousBoardHash: previousGameState ? getBoardHash(previousGameState.board).substring(0, 50) + '...' : 'none',
-          newBoardHash: getBoardHash(newSquares).substring(0, 50) + '...'
+          newBoardHash: getBoardHash(backendBoard).substring(0, 50) + '...'
         });
         
         const hasAnyChanges = hasGameStateChanged || hasBoardChanged;
@@ -167,7 +209,6 @@ export const ArenaGameView: React.FC = () => {
       }
       
       // Only poll if it's not the user's turn (to avoid unnecessary calls)
-      const playerColor = isOwner ? 'white' : 'black';
       if (gameState.currentPlayer === playerColor) {
         console.log('🔄 [POLLING] Skipping poll - user\'s turn');
         return;
@@ -189,13 +230,16 @@ export const ArenaGameView: React.FC = () => {
     return null;
   }
 
-  const { gameId, userAddress, opponentAddress, wagerAmount } = state;
+  const { gameId, userAddress, opponentAddress, wagerAmount, networkType, chainId } = state;
 
-  const handleSquareClick = async (row: number, col: number) => {
+  const handleSquareClick = async (displayRow: number, displayCol: number) => {
     if (!gameState || !userAddress) return;
 
+    // Transform display coordinates to backend coordinates
+    const backendCoords = transformDisplayToBackend(displayRow, displayCol);
+    const { row, col } = backendCoords;
+
     // Check if it's the player's turn
-    const playerColor = isOwner ? 'white' : 'black';
     if (gameState.currentPlayer !== playerColor) {
       console.log('Not your turn');
       return;
@@ -203,13 +247,17 @@ export const ArenaGameView: React.FC = () => {
 
     // If no square is selected, try to select this square
     if (!selectedSquare) {
-      const square = squares[row][col];
+      const square = squares[displayRow][displayCol];
       if (square.piece && square.piece.color === playerColor) {
-        setSelectedSquare({ row, col });
+        setSelectedSquare({ row: displayRow, col: displayCol });
         
-        // Get valid moves for this piece
+        // Get valid moves for this piece (use backend coordinates for API)
         try {
-          console.log('🔍 Getting valid moves for piece at:', { row, col, piece: square.piece });
+          console.log('🔍 Getting valid moves for piece at:', { 
+            displayRow, displayCol, 
+            backendRow: row, backendCol: col, 
+            piece: square.piece 
+          });
           const response = await apiClient.getValidMoves(gameId, row, col);
           console.log('📋 Valid moves response:', {
             success: response.success,
@@ -217,7 +265,11 @@ export const ArenaGameView: React.FC = () => {
             validMoves: response.validMoves
           });
           if (response.success && response.validMoves) {
-            setValidMoves(response.validMoves);
+            // Transform valid moves from backend coordinates to display coordinates
+            const displayValidMoves = response.validMoves.map((move: { row: number; col: number }) => 
+              transformBackendToDisplay(move.row, move.col)
+            );
+            setValidMoves(displayValidMoves);
           }
         } catch (err) {
           console.error('💥 Failed to get valid moves:', err);
@@ -227,20 +279,22 @@ export const ArenaGameView: React.FC = () => {
     }
 
     // If a square is selected, try to make a move
-    if (selectedSquare.row === row && selectedSquare.col === col) {
+    if (selectedSquare.row === displayRow && selectedSquare.col === displayCol) {
       // Deselect if clicking the same square
       setSelectedSquare(null);
       setValidMoves([]);
       return;
     }
 
-    // Check if this is a valid move
-    const isValidMove = validMoves.some(move => move.row === row && move.col === col);
+    // Check if this is a valid move (using display coordinates)
+    const isValidMove = validMoves.some(move => move.row === displayRow && move.col === displayCol);
     
     if (isValidMove) {
-      const moveFrom = selectedSquare;
+      // Transform selected square from display to backend coordinates
+      const selectedBackendCoords = transformDisplayToBackend(selectedSquare.row, selectedSquare.col);
+      const moveFrom = selectedBackendCoords;
       const moveTo = { row, col };
-      const piece = squares[moveFrom.row][moveFrom.col].piece;
+      const piece = squares[selectedSquare.row][selectedSquare.col].piece;
       
       console.log('🎯 Attempting chess move:', {
         gameId: gameId.substring(0, 8) + '...',
@@ -273,7 +327,7 @@ export const ArenaGameView: React.FC = () => {
           });
           
           setGameState(response.gameState);
-          setSquares(response.gameState.board);
+          setSquares(transformBoardForDisplay(response.gameState.board));
           previousGameStateRef.current = response.gameState; // Update ref
           setSelectedSquare(null);
           setValidMoves([]);
@@ -297,12 +351,16 @@ export const ArenaGameView: React.FC = () => {
       }
     } else {
       // Try to select a different piece
-      const square = squares[row][col];
+      const square = squares[displayRow][displayCol];
       if (square.piece && square.piece.color === playerColor) {
-        setSelectedSquare({ row, col });
+        setSelectedSquare({ row: displayRow, col: displayCol });
         
         try {
-          console.log('🔍 Getting valid moves for new piece at:', { row, col, piece: square.piece });
+          console.log('🔍 Getting valid moves for new piece at:', { 
+            displayRow, displayCol, 
+            backendRow: row, backendCol: col, 
+            piece: square.piece 
+          });
           const response = await apiClient.getValidMoves(gameId, row, col);
           console.log('📋 Valid moves response (new piece):', {
             success: response.success,
@@ -310,7 +368,11 @@ export const ArenaGameView: React.FC = () => {
             validMoves: response.validMoves
           });
           if (response.success && response.validMoves) {
-            setValidMoves(response.validMoves);
+            // Transform valid moves from backend coordinates to display coordinates
+            const displayValidMoves = response.validMoves.map((move: { row: number; col: number }) => 
+              transformBackendToDisplay(move.row, move.col)
+            );
+            setValidMoves(displayValidMoves);
           }
         } catch (err) {
           console.error('💥 Failed to get valid moves (new piece):', err);
@@ -339,6 +401,13 @@ export const ArenaGameView: React.FC = () => {
     }
   };
 
+  const formatNetwork = () => {
+    if (!networkType) {
+      return 'Legacy (Unknown Network)';
+    }
+    return getChainName(networkType, chainId);
+  };
+
   const formatAddress = (address: string) => {
     return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
   };
@@ -360,7 +429,7 @@ export const ArenaGameView: React.FC = () => {
           
           {/* Game Info */}
           <div className="bg-white rounded-lg shadow-md p-4 mb-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
                 <h3 className="text-sm font-medium text-gray-500">Game ID</h3>
                 <p className="text-lg font-mono">{gameId.substring(0, 8)}...</p>
@@ -368,6 +437,10 @@ export const ArenaGameView: React.FC = () => {
               <div>
                 <h3 className="text-sm font-medium text-gray-500">Wager</h3>
                 <p className="text-lg font-semibold text-green-600">{formatWager(wagerAmount)}</p>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-gray-500">Network</h3>
+                <p className="text-lg font-semibold text-blue-600">{formatNetwork()}</p>
               </div>
               <div>
                 <h3 className="text-sm font-medium text-gray-500">Your Role</h3>
@@ -394,6 +467,11 @@ export const ArenaGameView: React.FC = () => {
         {/* Chess Board */}
         <div className="flex justify-center">
           <div className="bg-white rounded-lg shadow-lg p-6 relative">
+            {/* Board orientation indicator */}
+            <div className="text-center mb-2 text-sm text-gray-600">
+              <span className="font-semibold">{playerColor === 'white' ? 'White' : 'Black'}</span> pieces at bottom
+            </div>
+            
             {/* Only show board when we have valid squares data */}
             {squares && squares.length > 0 ? (
               <>

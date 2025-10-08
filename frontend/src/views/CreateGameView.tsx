@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { useGameState } from '../state/GameStateManager';
 import { useApiClient } from '../services/api';
+import { NETWORK_OPTIONS } from '../config/chains';
 
 export const CreateGameView: React.FC = () => {
   const { user } = usePrivy();
@@ -9,6 +10,9 @@ export const CreateGameView: React.FC = () => {
   const apiClient = useApiClient();
 
   const userAddress = user?.wallet?.address || (state.type === 'CREATE_GAME' ? state.userAddress : undefined);
+  
+  // Network selection state
+  const [selectedNetwork, setSelectedNetwork] = useState<string>('sepolia'); // Default to Sepolia
 
   const handleWagerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     dispatch({ type: 'UPDATE_WAGER_AMOUNT', wagerAmount: e.target.value });
@@ -18,15 +22,26 @@ export const CreateGameView: React.FC = () => {
     dispatch({ type: 'UPDATE_OPPONENT_ADDRESS', opponentAddress: e.target.value });
   };
 
+  const handleNetworkChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedNetwork(e.target.value);
+  };
+
   const handleCreateGame = async () => {
     if (state.type === 'CREATE_GAME' && state.isFormValid) {
       try {
         dispatch({ type: 'SET_LOADING', isLoading: true });
         dispatch({ type: 'CLEAR_ERROR' });
         
+        // Parse network selection to get networkType and chainId
+        const networkOption = NETWORK_OPTIONS.find(option => option.value === selectedNetwork);
+        const networkType = networkOption?.networkType || 'EVM';
+        const chainId = networkOption?.chainId;
+
         const response = await apiClient.createGame(
           state.wagerAmount,
-          state.opponentAddress || undefined
+          state.opponentAddress || undefined,
+          networkType,
+          chainId
         );
         
         console.log('Game created successfully:', response);
@@ -105,6 +120,29 @@ export const CreateGameView: React.FC = () => {
         </div>
         
         <form className="space-y-6">
+          <div>
+            <label htmlFor="network" className="block text-sm font-medium text-gray-700 mb-2">
+              Network *
+            </label>
+            <select
+              id="network"
+              value={selectedNetwork}
+              onChange={handleNetworkChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {NETWORK_OPTIONS.map((option) => (
+                <option 
+                  key={option.value} 
+                  value={option.value} 
+                  disabled={!option.enabled}
+                >
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-gray-500 text-xs mt-1">Choose the blockchain network for this game</p>
+          </div>
+
           <div>
             <label htmlFor="wager" className="block text-sm font-medium text-gray-700 mb-2">
               Wager Amount (ETH) *

@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { GameLobby } from '../services/GameLobby';
-import { GameApiResponse, GamesListApiResponse, serializeGame, AcceptGameInvitationRequest } from '../types/Game';
+import { GameApiResponse, GamesListApiResponse, serializeGame, AcceptGameInvitationRequest, NetworkType } from '../types/Game';
 import { MoveRequest, MoveResponse } from '../types/Chess';
 import { authenticateUser, validateAddressOwnership, AuthenticatedRequest } from '../middleware/auth';
 
@@ -10,7 +10,7 @@ const gameLobby = GameLobby.getInstance();
 // Create a new game
 router.post('/create', authenticateUser, (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { opponent, wagerAmount } = req.body;
+    const { opponent, wagerAmount, networkType, chainId } = req.body;
     const owner = req.user!.address; // Get from authenticated user
 
     // Validate required fields
@@ -18,6 +18,32 @@ router.post('/create', authenticateUser, (req: AuthenticatedRequest, res: Respon
       const response: GameApiResponse = {
         success: false,
         error: 'Wager amount is required'
+      };
+      return res.status(400).json(response);
+    }
+
+    if (!networkType) {
+      const response: GameApiResponse = {
+        success: false,
+        error: 'Network type is required'
+      };
+      return res.status(400).json(response);
+    }
+
+    // Validate network type
+    if (!Object.values(NetworkType).includes(networkType)) {
+      const response: GameApiResponse = {
+        success: false,
+        error: 'Invalid network type. Must be EVM or SOL'
+      };
+      return res.status(400).json(response);
+    }
+
+    // Validate chain ID for EVM networks
+    if (networkType === NetworkType.EVM && !chainId) {
+      const response: GameApiResponse = {
+        success: false,
+        error: 'Chain ID is required for EVM networks'
       };
       return res.status(400).json(response);
     }
@@ -46,7 +72,7 @@ router.post('/create', authenticateUser, (req: AuthenticatedRequest, res: Respon
       return res.status(400).json(response);
     }
 
-    const game = gameLobby.createGame(owner, opponent, wager.toString());
+    const game = gameLobby.createGame(owner, opponent, wager.toString(), networkType, chainId);
     
     const response: GameApiResponse = {
       success: true,
@@ -331,6 +357,51 @@ router.get('/', (req: Request, res: Response) => {
   }
 });
 
+// Get settled games for a user
+router.get('/settled', async (req: Request, res: Response) => {
+  try {
+    const userAddress = req.query.userAddress as string;
+    
+    if (!userAddress) {
+      return res.status(400).json({
+        success: false,
+        error: 'User address is required'
+      });
+    }
+
+    console.log('📊 [GAME_ROUTES] Getting settled games for user:', userAddress.substring(0, 8) + '...');
+    
+    const settledGames = gameLobby.getSettledGames(userAddress);
+    
+    console.log('📊 [GAME_ROUTES] Settled games found:', {
+      userAddress: userAddress.substring(0, 8) + '...',
+      count: settledGames.length,
+      games: settledGames.map(g => ({
+        id: g.id.substring(0, 8) + '...',
+        state: g.state,
+        winner: g.winner,
+        owner: g.owner?.substring(0, 8) + '...',
+        opponent: g.opponent?.substring(0, 8) + '...'
+      }))
+    });
+
+    res.json({
+      success: true,
+      data: settledGames.map(serializeGame)
+    });
+  } catch (error) {
+    console.error('💥 [GAME_ROUTES] Error getting settled games:', {
+      error: error,
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
 // Get a specific game - MUST be last
 router.get('/:gameId', (req: Request, res: Response) => {
   try {
@@ -556,51 +627,6 @@ router.post('/:gameId/chess/move', authenticateUser, (req: AuthenticatedRequest,
       error: 'Internal server error'
     };
     res.status(500).json(response);
-  }
-});
-
-// Get settled games for a user
-router.get('/settled', async (req: Request, res: Response) => {
-  try {
-    const userAddress = req.query.userAddress as string;
-    
-    if (!userAddress) {
-      return res.status(400).json({
-        success: false,
-        error: 'User address is required'
-      });
-    }
-
-    console.log('📊 [GAME_ROUTES] Getting settled games for user:', userAddress.substring(0, 8) + '...');
-    
-    const settledGames = gameLobby.getSettledGames(userAddress);
-    
-    console.log('📊 [GAME_ROUTES] Settled games found:', {
-      userAddress: userAddress.substring(0, 8) + '...',
-      count: settledGames.length,
-      games: settledGames.map(g => ({
-        id: g.id.substring(0, 8) + '...',
-        state: g.state,
-        winner: g.winner,
-        owner: g.owner?.substring(0, 8) + '...',
-        opponent: g.opponent?.substring(0, 8) + '...'
-      }))
-    });
-
-    res.json({
-      success: true,
-      data: settledGames
-    });
-  } catch (error) {
-    console.error('💥 [GAME_ROUTES] Error getting settled games:', {
-      error: error,
-      message: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined
-    });
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error'
-    });
   }
 });
 

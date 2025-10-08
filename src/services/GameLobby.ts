@@ -1,4 +1,4 @@
-import { Game, GameState } from '../types/Game';
+import { Game, GameState, NetworkType } from '../types/Game';
 import { ChessEngine } from './ChessEngine';
 import { randomUUID } from 'crypto';
 
@@ -18,7 +18,7 @@ export class GameLobby {
   /**
    * Create a new game
    */
-  public createGame(owner: string, opponent: string | null, wager: string): Game {
+  public createGame(owner: string, opponent: string | null, wager: string, networkType: NetworkType, chainId?: number): Game {
     const gameId = randomUUID();
     const wagerBigInt = BigInt(wager);
     
@@ -31,6 +31,8 @@ export class GameLobby {
       opponent,
       wager: wagerBigInt,
       state: state,
+      networkType,
+      chainId,
       createdAt: new Date()
     };
 

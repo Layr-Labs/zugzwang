@@ -3,6 +3,7 @@ import { usePrivy } from '@privy-io/react-auth';
 import { useGameState } from '../state/GameStateManager';
 import { useApiClient } from '../services/api';
 import { Game } from '../types/Game';
+import { getChainName } from '../config/chains';
 
 interface GameData {
   openGames: Game[];
@@ -107,6 +108,8 @@ export const BrowseGamesView: React.FC = () => {
           userAddress,
           opponentAddress: response.data.owner, // The owner is now the opponent
           wagerAmount: response.data.wager,
+          networkType: response.data.networkType,
+          chainId: response.data.chainId,
           isOwner: false
         });
       } else {
@@ -183,6 +186,8 @@ export const BrowseGamesView: React.FC = () => {
       userAddress,
       opponentAddress: opponentAddress || undefined,
       wagerAmount: game.wager.toString(),
+      networkType: game.networkType,
+      chainId: game.chainId,
       isOwner
     });
   };
@@ -225,6 +230,26 @@ export const BrowseGamesView: React.FC = () => {
       console.error('Error formatting wager:', error);
       return 'Invalid wager';
     }
+  };
+
+  const formatNetwork = (game: Game) => {
+    console.log('🔍 FORMAT NETWORK DEBUG - Game:', {
+      id: game.id,
+      networkType: game.networkType,
+      chainId: game.chainId
+    });
+    
+    // Handle cases where networkType or chainId might be missing (legacy games)
+    if (!game.networkType) {
+      console.log('🔍 FORMAT NETWORK DEBUG - No networkType, returning Legacy');
+      return 'Legacy (Unknown Network)';
+    }
+    
+    const networkName = getChainName(game.networkType, game.chainId);
+    console.log('🔍 FORMAT NETWORK DEBUG - Network name:', networkName);
+    
+    // Ensure we always return a non-empty string
+    return networkName || 'Unknown Network';
   };
 
   const formatAddress = (address: string) => {
@@ -306,6 +331,9 @@ export const BrowseGamesView: React.FC = () => {
                       <div className="text-sm text-gray-500">
                         Created by {formatAddress(game.owner)} • {formatDate(game.createdAt)}
                       </div>
+                      <div className="text-sm text-blue-600">
+                        Network: {formatNetwork(game) || 'Unknown'}
+                      </div>
                       {game.opponent && (
                         <div className="text-sm text-blue-600">
                           Invited: {formatAddress(game.opponent)}
@@ -350,6 +378,9 @@ export const BrowseGamesView: React.FC = () => {
                         <div className="text-sm text-gray-500">
                           {game.owner.toLowerCase() === userAddress?.toLowerCase() ? 'You vs' : 'vs You'} {formatAddress(game.opponent || game.owner)} • Started {formatDate(game.startedAt || game.createdAt)}
                         </div>
+                        <div className="text-sm text-blue-600">
+                          Network: {formatNetwork(game) || 'Unknown'}
+                        </div>
                         <div className="text-sm text-green-600 font-medium">
                           Game ID: {game.id.substring(0, 8)}...
                         </div>
@@ -392,6 +423,9 @@ export const BrowseGamesView: React.FC = () => {
                       <div className="text-sm text-gray-500">
                         Invited by {formatAddress(game.owner)} • {formatDate(game.createdAt)}
                       </div>
+                      <div className="text-sm text-blue-600">
+                        Network: {formatNetwork(game)}
+                      </div>
                     </div>
                     <button
                       onClick={() => handleAcceptInvitation(game.id, game.wager)}
@@ -430,6 +464,9 @@ export const BrowseGamesView: React.FC = () => {
                         <div className="font-medium">Wager: {formatWager(game.wager)}</div>
                         <div className="text-sm text-gray-500">
                           You created • {formatDate(game.createdAt)}
+                        </div>
+                        <div className="text-sm text-blue-600">
+                          Network: {formatNetwork(game) || 'Unknown'}
                         </div>
                         {game.opponent ? (
                           <div className="text-sm text-blue-600">

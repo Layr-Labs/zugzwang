@@ -43,6 +43,8 @@ export interface ArenaGameState {
   userAddress?: string;
   opponentAddress?: string;
   wagerAmount: string;
+  networkType?: string;
+  chainId?: number;
   isOwner: boolean;
   isLoading: boolean;
   error?: string;
@@ -87,12 +89,14 @@ export const createCreateGameState = (userAddress?: string, isLoading: boolean =
   error
 });
 
-export const createArenaGameState = (gameId: string, userAddress?: string, opponentAddress?: string, wagerAmount: string = '', isOwner: boolean = false, isLoading: boolean = false, error?: string): ArenaGameState => ({
+export const createArenaGameState = (gameId: string, userAddress?: string, opponentAddress?: string, wagerAmount: string = '', networkType?: string, chainId?: number, isOwner: boolean = false, isLoading: boolean = false, error?: string): ArenaGameState => ({
   type: GameStateType.ARENA_GAME,
   gameId,
   userAddress,
   opponentAddress,
   wagerAmount,
+  networkType,
+  chainId,
   isOwner,
   isLoading,
   error

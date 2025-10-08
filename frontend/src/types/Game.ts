@@ -3,7 +3,9 @@ export interface Game {
   owner: string;
   opponent: string | null;
   wager: string;
-  state: 'CREATED' | 'STARTED' | 'SETTLED';
+  state: 'CREATED' | 'WAITING' | 'STARTED' | 'SETTLED';
+  networkType: 'EVM' | 'SOL';
+  chainId?: number;
   createdAt: string;
   startedAt?: string;
   settledAt?: string;
