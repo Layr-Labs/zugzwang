@@ -18,8 +18,8 @@ export interface AppConfig {
 const configs: Record<Environment, BackendConfig> = {
   local: {
     baseUrl: 'http://localhost',
-    port: 3001,
-    fullUrl: 'http://localhost:3001'
+    port: 8000,
+    fullUrl: 'http://localhost:8000'
   },
   development: {
     baseUrl: 'https://dev-api.zugzwang.com',

@@ -61,6 +61,12 @@ export interface GameApiResponse {
   success: boolean;
   data?: GameResponse;
   error?: string;
+  escrow?: {
+    transactionHash: string;
+    blockNumber: number;
+    status: number;
+  };
+  transactionHash?: string;
 }
 
 export interface GamesListApiResponse {

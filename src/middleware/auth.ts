@@ -150,3 +150,164 @@ export const validateAddressOwnership = (addressParam: string = 'address') => {
     next();
   };
 };
+
+/**
+ * Sign a transaction using Privy delegated actions
+ * @param transaction - The transaction object to sign
+ * @param userAddress - The user's wallet address
+ * @param userJwt - The user's JWT token
+ * @param userId - The user's Privy ID
+ * @returns Promise<string> - The signed transaction
+ */
+export const signTransactionWithPrivy = async (
+  transaction: any,
+  userAddress: string,
+  userJwt: string,
+  userId: string
+): Promise<string> => {
+  try {
+    console.log('🔍 [PRIVY_SIGNING] Starting two-step Privy signing process:', {
+      to: transaction.to,
+      value: transaction.value?.toString(),
+      nonce: transaction.nonce,
+      chainId: transaction.chainId,
+      userAddress
+    });
+
+    // Step 1: Get user's wallet information directly
+    console.log('🔍 [PRIVY_SIGNING] Step 1: Getting user wallet information...');
+    console.log('🔍 [PRIVY_SIGNING] User details:', {
+      userId,
+      userAddress,
+      tokenLength: userJwt.length
+    });
+    
+    // Get the user object to access wallet information
+    const user = await privy.getUserById(userId);
+    console.log('🔍 [PRIVY_SIGNING] User object:', {
+      id: user.id,
+      linkedAccountsCount: user.linkedAccounts?.length || 0,
+      hasWallet: !!user.wallet
+    });
+
+    // Check if user has a wallet and if it matches the address
+    if (!user.wallet) {
+      throw new Error(`No wallet found for user ${userId}`);
+    }
+
+    if (user.wallet.address.toLowerCase() !== userAddress.toLowerCase()) {
+      throw new Error(`Wallet address mismatch. User wallet: ${user.wallet.address}, provided: ${userAddress}`);
+    }
+
+    if (user.wallet.chainType !== 'ethereum') {
+      throw new Error(`Wallet is not an Ethereum wallet. Chain type: ${user.wallet.chainType}`);
+    }
+
+    console.log('🔍 [PRIVY_SIGNING] Found user wallet:', {
+      walletId: user.wallet.id,
+      address: user.wallet.address,
+      chainType: user.wallet.chainType
+    });
+
+    // Now let's try the actual Privy signing approach
+    console.log('🔍 [PRIVY_SIGNING] Step 2: Attempting to sign with Privy...');
+    
+    try {
+      // Try to use the wallet API directly with the user's JWT
+      const transactionInput = {
+        walletId: user.wallet.id!,
+        transaction: {
+          from: userAddress as `0x${string}`,
+          to: transaction.to as `0x${string}`,
+          value: `0x${transaction.value.toString(16)}` as `0x${string}`,
+          nonce: `0x${transaction.nonce.toString(16)}` as `0x${string}`,
+          gasLimit: `0x${transaction.gasLimit.toString(16)}` as `0x${string}`,
+          gasPrice: transaction.gasPrice ? `0x${transaction.gasPrice.toString(16)}` as `0x${string}` : undefined,
+          maxFeePerGas: transaction.maxFeePerGas ? `0x${transaction.maxFeePerGas.toString(16)}` as `0x${string}` : undefined,
+          maxPriorityFeePerGas: transaction.maxPriorityFeePerGas ? `0x${transaction.maxPriorityFeePerGas.toString(16)}` as `0x${string}` : undefined,
+          data: (transaction.data || '0x') as `0x${string}`,
+          type: transaction.type || undefined,
+          chainId: `0x${transaction.chainId.toString(16)}` as `0x${string}`
+        }
+      };
+
+      console.log('🔍 [PRIVY_SIGNING] Transaction input prepared:', {
+        walletId: transactionInput.walletId,
+        from: transactionInput.transaction.from,
+        to: transactionInput.transaction.to,
+        value: transactionInput.transaction.value
+      });
+
+      // Try to sign the transaction
+      const result = await privy.walletApi.ethereum.signTransaction(transactionInput);
+      
+      console.log('✅ [PRIVY_SIGNING] Transaction signed successfully:', {
+        signedTransaction: result.signedTransaction.substring(0, 20) + '...',
+        encoding: result.encoding
+      });
+
+      return result.signedTransaction;
+    } catch (signError) {
+      console.error('❌ [PRIVY_SIGNING] Direct signing failed:', signError);
+      
+      // If direct signing fails, let's try the generateUserSigner approach
+      console.log('🔍 [PRIVY_SIGNING] Trying generateUserSigner approach...');
+      
+      try {
+        const userSigner = await privy.walletApi.generateUserSigner({ userJwt });
+        console.log('🔍 [PRIVY_SIGNING] User signer generated successfully');
+        
+        // Find the correct wallet from the signer
+        const userWallets = userSigner.wallets;
+        const userWallet = userWallets.find(w => 
+          w.address.toLowerCase() === userAddress.toLowerCase() && 
+          w.chainType === 'ethereum'
+        );
+        
+        if (!userWallet) {
+          throw new Error('No matching Ethereum wallet found in user signer');
+        }
+        
+        console.log('🔍 [PRIVY_SIGNING] Found wallet in user signer:', {
+          walletId: userWallet.id,
+          address: userWallet.address,
+          chainType: userWallet.chainType
+        });
+        
+        // Now sign with the user signer
+        const transactionInput = {
+          walletId: userWallet.id!,
+          transaction: {
+            from: userAddress as `0x${string}`,
+            to: transaction.to as `0x${string}`,
+            value: `0x${transaction.value.toString(16)}` as `0x${string}`,
+            nonce: `0x${transaction.nonce.toString(16)}` as `0x${string}`,
+            gasLimit: `0x${transaction.gasLimit.toString(16)}` as `0x${string}`,
+            gasPrice: transaction.gasPrice ? `0x${transaction.gasPrice.toString(16)}` as `0x${string}` : undefined,
+            maxFeePerGas: transaction.maxFeePerGas ? `0x${transaction.maxFeePerGas.toString(16)}` as `0x${string}` : undefined,
+            maxPriorityFeePerGas: transaction.maxPriorityFeePerGas ? `0x${transaction.maxPriorityFeePerGas.toString(16)}` as `0x${string}` : undefined,
+            data: (transaction.data || '0x') as `0x${string}`,
+            type: transaction.type || undefined,
+            chainId: `0x${transaction.chainId.toString(16)}` as `0x${string}`
+          }
+        };
+        
+        const result = await privy.walletApi.ethereum.signTransaction(transactionInput);
+        
+        console.log('✅ [PRIVY_SIGNING] Transaction signed successfully with user signer:', {
+          signedTransaction: result.signedTransaction.substring(0, 20) + '...',
+          encoding: result.encoding
+        });
+
+        return result.signedTransaction;
+      } catch (userSignerError) {
+        console.error('❌ [PRIVY_SIGNING] User signer approach also failed:', userSignerError);
+        throw new Error(`Both signing approaches failed. Direct: ${signError instanceof Error ? signError.message : 'Unknown'}, UserSigner: ${userSignerError instanceof Error ? userSignerError.message : 'Unknown'}`);
+      }
+    }
+
+  } catch (error) {
+    console.error('❌ [PRIVY_SIGNING] Error signing transaction:', error);
+    throw new Error(`Failed to sign transaction with Privy: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+};

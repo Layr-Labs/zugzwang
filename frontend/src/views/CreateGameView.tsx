@@ -47,11 +47,13 @@ export const CreateGameView: React.FC = () => {
         console.log('Game created successfully:', response);
         
         if (response.success && response.data) {
-          // Show success message and navigate back to menu
-          alert(`Game created successfully! Game ID: ${response.data.id}`);
-          
+          // Navigate to browse games with the new game highlighted
           if (userAddress) {
-            dispatch({ type: 'NAVIGATE_TO_MENU', userAddress });
+            dispatch({ 
+              type: 'NAVIGATE_TO_BROWSE_GAMES_WITH_HIGHLIGHT', 
+              userAddress, 
+              highlightGameId: response.data.id 
+            });
           }
         } else {
           throw new Error(response.error || 'Failed to create game');
@@ -59,9 +61,23 @@ export const CreateGameView: React.FC = () => {
         
       } catch (error) {
         console.error('Failed to create game:', error);
+        
+        // Handle different types of errors with better user messages
+        let errorMessage = 'Failed to create game';
+        
+        if (error instanceof Error) {
+          if (error.message.includes('Insufficient balance')) {
+            errorMessage = error.message; // Show the detailed balance error from backend
+          } else if (error.message.includes('Unable to verify wallet balance')) {
+            errorMessage = 'Unable to verify your wallet balance. Please check your connection and try again.';
+          } else {
+            errorMessage = error.message;
+          }
+        }
+        
         dispatch({ 
           type: 'SET_ERROR', 
-          error: error instanceof Error ? error.message : 'Failed to create game' 
+          error: errorMessage
         });
       } finally {
         dispatch({ type: 'SET_LOADING', isLoading: false });

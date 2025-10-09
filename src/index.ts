@@ -11,7 +11,7 @@ dotenv.config();
 initializePrivyClient();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.APP_PORT || 3001;
 
 // Middleware
 app.use(cors());
@@ -24,13 +24,48 @@ const gameLobby = GameLobby.getInstance();
 app.use('/api/games', gameRoutes);
 
 // Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Zugzwang Game Server is running',
-    timestamp: new Date().toISOString(),
-    stats: gameLobby.getStats()
-  });
+app.get('/health', async (req, res) => {
+  try {
+    // Check RPC connections for all supported networks
+    const { BlockchainService } = await import('./services/BlockchainService');
+    const blockchainService = BlockchainService.getInstance();
+    const rpcConnections = await blockchainService.validateAllRPCConnections();
+    
+    const allConnected = Object.values(rpcConnections).every(connected => connected);
+    
+    res.json({
+      success: true,
+      message: 'Zugzwang Game Server is running',
+      timestamp: new Date().toISOString(),
+      stats: gameLobby.getStats(),
+      rpc: {
+        allConnected,
+        networks: {
+          11155111: {
+            name: 'Ethereum Sepolia',
+            connected: rpcConnections[11155111],
+            url: process.env.SEPOLIA_RPC_URL || 'Not configured'
+          },
+          84532: {
+            name: 'Base Sepolia',
+            connected: rpcConnections[84532],
+            url: process.env.BASE_SEPOLIA_RPC_URL || 'Not configured'
+          }
+        }
+      }
+    });
+  } catch (error) {
+    res.status(503).json({
+      success: false,
+      message: 'Zugzwang Game Server is running but RPC connection failed',
+      timestamp: new Date().toISOString(),
+      stats: gameLobby.getStats(),
+      rpc: {
+        allConnected: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
+    });
+  }
 });
 
 // Root endpoint
@@ -76,6 +111,8 @@ app.listen(PORT, () => {
   console.log(`📊 Game Lobby initialized with ${gameLobby.getStats().total} games`);
   console.log(`🌐 Health check: http://localhost:${PORT}/health`);
   console.log(`🎮 API docs: http://localhost:${PORT}/`);
+  console.log(`🔗 Ethereum Sepolia RPC: ${process.env.SEPOLIA_RPC_URL || 'NOT SET'}`);
+  console.log(`🔗 Base Sepolia RPC: ${process.env.BASE_SEPOLIA_RPC_URL || 'NOT SET'}`);
 });
 
 // Graceful shutdown

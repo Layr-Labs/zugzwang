@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { useGameState } from '../state/GameStateManager';
 import { useApiClient } from '../services/api';
@@ -39,12 +39,41 @@ export const BrowseGamesView: React.FC = () => {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [highlightedGameId, setHighlightedGameId] = useState<string | null>(null);
+  const highlightedGameRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (userAddress) {
       fetchAllGames();
     }
   }, [userAddress]);
+
+  // Handle game highlighting from state
+  useEffect(() => {
+    if (state.type === 'BROWSE_GAMES' && state.highlightGameId) {
+      setHighlightedGameId(state.highlightGameId);
+      
+      // Scroll to the highlighted game after a short delay to ensure it's rendered
+      const scrollTimer = setTimeout(() => {
+        if (highlightedGameRef.current) {
+          highlightedGameRef.current.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+          });
+        }
+      }, 100);
+      
+      // Clear highlight after animation completes (3 seconds)
+      const clearTimer = setTimeout(() => {
+        setHighlightedGameId(null);
+      }, 3000);
+      
+      return () => {
+        clearTimeout(scrollTimer);
+        clearTimeout(clearTimer);
+      };
+    }
+  }, [state]);
 
   // Add polling every 5 seconds (disabled for now to debug)
   // useEffect(() => {
@@ -325,7 +354,13 @@ export const BrowseGamesView: React.FC = () => {
             ) : (
               <div className="space-y-3">
                 {getOpenGames().map((game) => (
-                  <div key={game.id} className="bg-white p-4 rounded border flex justify-between items-center">
+                  <div 
+                    key={game.id} 
+                    ref={highlightedGameId === game.id ? highlightedGameRef : null}
+                    className={`bg-white p-4 rounded border flex justify-between items-center ${
+                      highlightedGameId === game.id ? 'game-highlight' : ''
+                    }`}
+                  >
                     <div>
                       <div className="font-medium">Wager: {formatWager(game.wager)}</div>
                       <div className="text-sm text-gray-500">
@@ -458,7 +493,13 @@ export const BrowseGamesView: React.FC = () => {
             ) : (
               <div className="space-y-3">
                 {getYourGames().map((game) => (
-                  <div key={game.id} className="bg-white p-4 rounded border">
+                  <div 
+                    key={game.id} 
+                    ref={highlightedGameId === game.id ? highlightedGameRef : null}
+                    className={`bg-white p-4 rounded border ${
+                      highlightedGameId === game.id ? 'game-highlight' : ''
+                    }`}
+                  >
                     <div className="flex justify-between items-start">
                       <div>
                         <div className="font-medium">Wager: {formatWager(game.wager)}</div>

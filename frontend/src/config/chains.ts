@@ -31,6 +31,18 @@ export const SUPPORTED_CHAINS: ChainConfig[] = [
       symbol: 'ETH',
       decimals: 18
     }
+  },
+  {
+    id: 84532, // Base Sepolia testnet
+    name: 'Base Sepolia',
+    networkType: 'EVM',
+    rpcUrl: 'https://base-sepolia-rpc.publicnode.com',
+    blockExplorerUrl: 'https://sepolia.basescan.org',
+    nativeCurrency: {
+      name: 'Ethereum',
+      symbol: 'ETH',
+      decimals: 18
+    }
   }
 ];
 
@@ -40,6 +52,13 @@ export const NETWORK_OPTIONS: NetworkOption[] = [
     label: 'Ethereum Sepolia',
     networkType: 'EVM',
     chainId: 11155111,
+    enabled: true
+  },
+  {
+    value: 'base-sepolia',
+    label: 'Base Sepolia',
+    networkType: 'EVM',
+    chainId: 84532,
     enabled: true
   },
   {

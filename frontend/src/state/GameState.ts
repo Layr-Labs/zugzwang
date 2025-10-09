@@ -25,6 +25,7 @@ export interface BrowseGamesState {
   isLoading: boolean;
   games?: any[];
   error?: string;
+  highlightGameId?: string;
 }
 
 export interface CreateGameState {
@@ -71,12 +72,13 @@ export const createMenuState = (userAddress?: string, isLoading: boolean = false
   isLoading
 });
 
-export const createBrowseGamesState = (userAddress?: string, isLoading: boolean = false, games?: any[], error?: string): BrowseGamesState => ({
+export const createBrowseGamesState = (userAddress?: string, isLoading: boolean = false, games?: any[], error?: string, highlightGameId?: string): BrowseGamesState => ({
   type: GameStateType.BROWSE_GAMES,
   userAddress,
   isLoading,
   games,
-  error
+  error,
+  highlightGameId
 });
 
 export const createCreateGameState = (userAddress?: string, isLoading: boolean = false, wagerAmount: string = '', opponentAddress: string = '', isFormValid: boolean = false, error?: string): CreateGameState => ({

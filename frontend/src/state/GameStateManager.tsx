@@ -13,6 +13,7 @@ type GameStateAction =
   | { type: 'LOGOUT' }
   | { type: 'CLEAR_ERROR' }
   | { type: 'NAVIGATE_TO_BROWSE_GAMES'; userAddress: string }
+  | { type: 'NAVIGATE_TO_BROWSE_GAMES_WITH_HIGHLIGHT'; userAddress: string; highlightGameId: string }
   | { type: 'NAVIGATE_TO_CREATE_GAME'; userAddress: string }
   | { type: 'NAVIGATE_TO_MENU'; userAddress: string }
   | { type: 'NAVIGATE_TO_ARENA_GAME'; gameId: string; userAddress: string; opponentAddress?: string; wagerAmount: string; networkType?: string; chainId?: number; isOwner: boolean }
@@ -31,7 +32,7 @@ const gameStateReducer = (state: GameState, action: GameStateAction): GameState 
       } else if (state.type === GameStateType.MENU) {
         return createMenuState(state.userAddress, action.isLoading);
       } else if (state.type === GameStateType.BROWSE_GAMES) {
-        return createBrowseGamesState(state.userAddress, action.isLoading, state.games, state.error);
+        return createBrowseGamesState(state.userAddress, action.isLoading, state.games, state.error, state.highlightGameId);
       } else if (state.type === GameStateType.CREATE_GAME) {
         return createCreateGameState(state.userAddress, action.isLoading, state.wagerAmount, state.opponentAddress, state.isFormValid, state.error);
       }
@@ -41,7 +42,7 @@ const gameStateReducer = (state: GameState, action: GameStateAction): GameState 
       if (state.type === GameStateType.LOGIN) {
         return createLogInState(state.isLoading, action.error);
       } else if (state.type === GameStateType.BROWSE_GAMES) {
-        return createBrowseGamesState(state.userAddress, state.isLoading, state.games, action.error);
+        return createBrowseGamesState(state.userAddress, state.isLoading, state.games, action.error, state.highlightGameId);
       } else if (state.type === GameStateType.CREATE_GAME) {
         return createCreateGameState(state.userAddress, state.isLoading, state.wagerAmount, state.opponentAddress, state.isFormValid, action.error);
       }
@@ -57,7 +58,7 @@ const gameStateReducer = (state: GameState, action: GameStateAction): GameState 
       if (state.type === GameStateType.LOGIN) {
         return createLogInState(state.isLoading);
       } else if (state.type === GameStateType.BROWSE_GAMES) {
-        return createBrowseGamesState(state.userAddress, state.isLoading, state.games);
+        return createBrowseGamesState(state.userAddress, state.isLoading, state.games, undefined, state.highlightGameId);
       } else if (state.type === GameStateType.CREATE_GAME) {
         return createCreateGameState(state.userAddress, state.isLoading, state.wagerAmount, state.opponentAddress, state.isFormValid);
       }
@@ -65,6 +66,9 @@ const gameStateReducer = (state: GameState, action: GameStateAction): GameState 
     
     case 'NAVIGATE_TO_BROWSE_GAMES':
       return createBrowseGamesState(action.userAddress, false);
+    
+    case 'NAVIGATE_TO_BROWSE_GAMES_WITH_HIGHLIGHT':
+      return createBrowseGamesState(action.userAddress, false, undefined, undefined, action.highlightGameId);
     
     case 'NAVIGATE_TO_CREATE_GAME':
       return createCreateGameState(action.userAddress, false);

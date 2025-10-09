@@ -15,3 +15,36 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+/* Game highlight animation */
+@keyframes gameHighlight {
+  0% {
+    background-color: #fef3c7; /* yellow-100 */
+    border-color: #f59e0b; /* amber-500 */
+    transform: scale(1);
+  }
+  25% {
+    background-color: #fde68a; /* yellow-200 */
+    border-color: #d97706; /* amber-600 */
+    transform: scale(1.02);
+  }
+  50% {
+    background-color: #fef3c7; /* yellow-100 */
+    border-color: #f59e0b; /* amber-500 */
+    transform: scale(1);
+  }
+  75% {
+    background-color: #fde68a; /* yellow-200 */
+    border-color: #d97706; /* amber-600 */
+    transform: scale(1.02);
+  }
+  100% {
+    background-color: #ffffff; /* white */
+    border-color: #d1d5db; /* gray-300 */
+    transform: scale(1);
+  }
+}
+
+.game-highlight {
+  animation: gameHighlight 3s ease-in-out;
+}

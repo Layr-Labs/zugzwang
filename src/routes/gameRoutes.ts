@@ -1,17 +1,20 @@
 import { Router, Request, Response } from 'express';
 import { GameLobby } from '../services/GameLobby';
+import { BlockchainService } from '../services/BlockchainService';
 import { GameApiResponse, GamesListApiResponse, serializeGame, AcceptGameInvitationRequest, NetworkType } from '../types/Game';
 import { MoveRequest, MoveResponse } from '../types/Chess';
-import { authenticateUser, validateAddressOwnership, AuthenticatedRequest } from '../middleware/auth';
+import { authenticateUser, validateAddressOwnership, AuthenticatedRequest, signTransactionWithPrivy } from '../middleware/auth';
 
 const router = Router();
 const gameLobby = GameLobby.getInstance();
 
 // Create a new game
-router.post('/create', authenticateUser, (req: AuthenticatedRequest, res: Response) => {
+router.post('/create', authenticateUser, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { opponent, wagerAmount, networkType, chainId } = req.body;
     const owner = req.user!.address; // Get from authenticated user
+    const userId = req.user!.id; // Get user ID
+    const accessToken = req.headers.authorization?.substring(7); // Get JWT token
 
     // Validate required fields
     if (!wagerAmount) {
@@ -51,8 +54,6 @@ router.post('/create', authenticateUser, (req: AuthenticatedRequest, res: Respon
     // Convert wagerAmount to BigInt (assuming it's in ETH as string)
     const wager = BigInt(Math.floor(parseFloat(wagerAmount) * 1e18));
 
-    // Owner address is already validated by authentication middleware
-
     // Validate opponent address if provided
     if (opponent && !/^0x[a-fA-F0-9]{40}$/.test(opponent)) {
       const response: GameApiResponse = {
@@ -72,15 +73,110 @@ router.post('/create', authenticateUser, (req: AuthenticatedRequest, res: Respon
       return res.status(400).json(response);
     }
 
-    const game = gameLobby.createGame(owner, opponent, wager.toString(), networkType, chainId);
-    
-    const response: GameApiResponse = {
-      success: true,
-      data: serializeGame(game)
-    };
-    
-    res.status(201).json(response);
+    // ESCROW PROCESS FOR EVM NETWORKS
+    if (networkType === NetworkType.EVM) {
+      try {
+        console.log('🔍 [GAME_ROUTES] Starting escrow process for EVM network:', {
+          owner,
+          wager: wager.toString(),
+          chainId,
+          networkType
+        });
+
+        const blockchainService = BlockchainService.getInstance();
+
+        // Step 1: Check if user has sufficient balance
+        const hasBalance = await blockchainService.hasSufficientBalance(owner, wager, chainId);
+        if (!hasBalance) {
+          const currentBalance = await blockchainService.getBalanceInETH(owner, chainId);
+          const wagerETH = (Number(wager) / 1e18).toFixed(6);
+          
+          const response: GameApiResponse = {
+            success: false,
+            error: `Insufficient balance. You have ${currentBalance} ETH but need ${wagerETH} ETH for this wager.`
+          };
+          return res.status(402).json(response);
+        }
+
+        // Step 2: Get nonce for user's address
+        const nonce = await blockchainService.getNonce(owner, chainId);
+
+        // Step 3: Get backend address from mnemonic
+        const backendAddress = blockchainService.getBackendAddress();
+
+        // Step 4: Craft escrow transaction
+        const transaction = blockchainService.craftEscrowTransaction(
+          owner,
+          backendAddress,
+          wager,
+          nonce,
+          chainId
+        );
+
+        // Step 5: Sign transaction with Privy using delegated actions
+        if (!accessToken) {
+          const response: GameApiResponse = {
+            success: false,
+            error: 'Access token required for transaction signing'
+          };
+          return res.status(401).json(response);
+        }
+
+        const signedTransaction = await signTransactionWithPrivy(transaction, owner, accessToken, userId);
+
+        // Step 6: Submit transaction and wait for confirmation
+        const { hash, receipt } = await blockchainService.submitTransactionAndWait(
+          signedTransaction,
+          chainId
+        );
+
+        console.log('✅ [GAME_ROUTES] Escrow transaction completed:', {
+          hash,
+          blockNumber: receipt.blockNumber,
+          status: receipt.status
+        });
+
+        // Step 7: Only create game after successful escrow
+        const game = gameLobby.createGame(owner, opponent, wager.toString(), networkType, chainId);
+        
+        const response: GameApiResponse = {
+          success: true,
+          data: serializeGame(game),
+          escrow: {
+            transactionHash: hash,
+            blockNumber: receipt.blockNumber,
+            status: receipt.status
+          }
+        };
+        
+        res.status(201).json(response);
+
+      } catch (error) {
+        console.error('❌ [GAME_ROUTES] Escrow process failed:', error);
+        
+        // Return transaction hash if available for debugging
+        const errorResponse: GameApiResponse = {
+          success: false,
+          error: error instanceof Error ? error.message : 'Escrow transaction failed',
+          transactionHash: error instanceof Error && error.message.includes('hash') ? 
+            error.message.split('hash: ')[1]?.split(' ')[0] : undefined
+        };
+        
+        res.status(500).json(errorResponse);
+      }
+    } else {
+      // For non-EVM networks, create game directly (no escrow needed yet)
+      const game = gameLobby.createGame(owner, opponent, wager.toString(), networkType, chainId);
+      
+      const response: GameApiResponse = {
+        success: true,
+        data: serializeGame(game)
+      };
+      
+      res.status(201).json(response);
+    }
   } catch (error) {
+    console.error('❌ [GAME_ROUTES] Game creation failed:', error);
     const response: GameApiResponse = {
       success: false,
       error: 'Internal server error'
