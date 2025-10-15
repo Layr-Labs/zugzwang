@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { useGameState } from '../state/GameStateManager';
-import { useApiClient } from '../services/api';
+import { useEscrowContract } from '../services/escrowContract';
 import { NETWORK_OPTIONS } from '../config/chains';
 
 export const CreateGameView: React.FC = () => {
   const { user } = usePrivy();
   const { state, dispatch } = useGameState();
-  const apiClient = useApiClient();
+  const escrowContract = useEscrowContract();
 
   const userAddress = user?.wallet?.address || (state.type === 'CREATE_GAME' ? state.userAddress : undefined);
   
@@ -32,44 +32,63 @@ export const CreateGameView: React.FC = () => {
         dispatch({ type: 'SET_LOADING', isLoading: true });
         dispatch({ type: 'CLEAR_ERROR' });
         
-        // Parse network selection to get networkType and chainId
+        // Check if we're on the correct network
         const networkOption = NETWORK_OPTIONS.find(option => option.value === selectedNetwork);
-        const networkType = networkOption?.networkType || 'EVM';
-        const chainId = networkOption?.chainId;
+        const expectedChainId = networkOption?.chainId;
+        const contractChainId = escrowContract.getChainId();
+        
+        if (expectedChainId && expectedChainId !== contractChainId) {
+          throw new Error(`Please switch to ${networkOption?.label} network to create games`);
+        }
 
-        const response = await apiClient.createGame(
-          state.wagerAmount,
-          state.opponentAddress || undefined,
-          networkType,
-          chainId
+        // Generate a unique game ID
+        const gameId = crypto.randomUUID();
+        
+        console.log('🎮 [CREATE_GAME] Creating game with escrow contract:', {
+          gameId,
+          wagerAmount: state.wagerAmount,
+          opponent: state.opponentAddress,
+          contractAddress: escrowContract.getContractAddress()
+        });
+
+        // Call the escrow contract to create the game
+        const result = await escrowContract.createGame(
+          gameId,
+          state.opponentAddress || null,
+          state.wagerAmount
         );
         
-        console.log('Game created successfully:', response);
-        
-        if (response.success && response.data) {
+        if (result.success) {
+          console.log('✅ [CREATE_GAME] Game created successfully:', {
+            gameId,
+            transactionHash: result.transactionHash
+          });
+          
           // Navigate to browse games with the new game highlighted
           if (userAddress) {
             dispatch({ 
               type: 'NAVIGATE_TO_BROWSE_GAMES_WITH_HIGHLIGHT', 
               userAddress, 
-              highlightGameId: response.data.id 
+              highlightGameId: gameId 
             });
           }
         } else {
-          throw new Error(response.error || 'Failed to create game');
+          throw new Error(result.error || 'Failed to create game');
         }
         
       } catch (error) {
-        console.error('Failed to create game:', error);
+        console.error('❌ [CREATE_GAME] Failed to create game:', error);
         
         // Handle different types of errors with better user messages
         let errorMessage = 'Failed to create game';
         
         if (error instanceof Error) {
-          if (error.message.includes('Insufficient balance')) {
-            errorMessage = error.message; // Show the detailed balance error from backend
-          } else if (error.message.includes('Unable to verify wallet balance')) {
-            errorMessage = 'Unable to verify your wallet balance. Please check your connection and try again.';
+          if (error.message.includes('insufficient funds')) {
+            errorMessage = 'Insufficient funds for wager amount';
+          } else if (error.message.includes('user rejected')) {
+            errorMessage = 'Transaction was rejected by user';
+          } else if (error.message.includes('switch to')) {
+            errorMessage = error.message;
           } else {
             errorMessage = error.message;
           }

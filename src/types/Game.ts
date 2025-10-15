@@ -25,6 +25,11 @@ export interface Game {
   settledAt?: Date;
   chessState?: ChessGameState; // Chess game state when game is STARTED
   winner?: 'white' | 'black'; // Winner of the chess game when settled
+  escrow?: {
+    contractAddress: string;
+    transactionHash: string;
+    blockNumber: number;
+  };
 }
 
 export interface GameResponse {

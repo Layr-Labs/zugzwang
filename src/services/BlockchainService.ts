@@ -41,7 +41,7 @@ export class BlockchainService {
     return rpcUrl;
   }
 
-  private getProvider(chainId: number): ethers.JsonRpcProvider {
+  public getProvider(chainId: number): ethers.JsonRpcProvider {
     if (!this.providers.has(chainId)) {
       const rpcUrl = this.getRpcUrlForChainId(chainId);
       console.log('🔍 [BLOCKCHAIN_SERVICE] Creating provider for chain:', {

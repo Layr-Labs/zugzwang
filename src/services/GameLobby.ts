@@ -16,6 +16,68 @@ export class GameLobby {
   }
 
   /**
+   * Create a new game from blockchain event
+   */
+  public async createGameFromEvent(eventData: {
+    id: string;
+    creator: string;
+    opponent: string | null;
+    wagerAmount: string;
+    networkType: NetworkType;
+    chainId: number;
+    status: string;
+    createdAt: Date;
+    escrow: {
+      contractAddress: string;
+      transactionHash: string;
+      blockNumber: number;
+    };
+  }): Promise<Game> {
+    const wagerBigInt = BigInt(eventData.wagerAmount);
+    
+    // Map status to GameState
+    let state: GameState;
+    switch (eventData.status) {
+      case 'waiting':
+        state = GameState.WAITING;
+        break;
+      case 'created':
+        state = GameState.CREATED;
+        break;
+      default:
+        state = GameState.CREATED;
+    }
+    
+    const game: Game = {
+      id: eventData.id,
+      owner: eventData.creator,
+      opponent: eventData.opponent,
+      wager: wagerBigInt,
+      state: state,
+      networkType: eventData.networkType,
+      chainId: eventData.chainId,
+      createdAt: eventData.createdAt,
+      escrow: {
+        contractAddress: eventData.escrow.contractAddress,
+        transactionHash: eventData.escrow.transactionHash,
+        blockNumber: eventData.escrow.blockNumber
+      }
+    };
+
+    console.log('🎮 [GAME_LOBBY] Created game from event:', {
+      id: eventData.id,
+      creator: eventData.creator,
+      opponent: eventData.opponent,
+      wager: eventData.wagerAmount,
+      state: state,
+      escrow: eventData.escrow
+    });
+
+    this.games.set(eventData.id, game);
+    return game;
+  }
+
+  /**
    * Create a new game
    */
   public createGame(owner: string, opponent: string | null, wager: string, networkType: NetworkType, chainId?: number): Game {
