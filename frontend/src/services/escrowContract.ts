@@ -77,7 +77,7 @@ export const useEscrowContract = (): EscrowContractService => {
         to: contractMetadata.address,
         data: data,
         value: wagerAmountWei.toHexString(),
-        gasLimit: '200000', // Estimated gas limit
+        gasLimit: '0x30d40', // 200000 in hex
         chainId: contractMetadata.chainId // Add chain ID to ensure correct network
       };
 
@@ -152,7 +152,7 @@ export const useEscrowContract = (): EscrowContractService => {
         to: contractMetadata.address,
         data: data,
         value: wagerAmountWei.toHexString(),
-        gasLimit: '200000', // Estimated gas limit
+        gasLimit: '0x30d40', // 200000 in hex
         chainId: contractMetadata.chainId // Add chain ID to ensure correct network
       };
 
