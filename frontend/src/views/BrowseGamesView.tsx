@@ -168,7 +168,7 @@ export const BrowseGamesView: React.FC = () => {
       console.log('🔍 BROWSE GAMES DEBUG - Starting parallel fetch...');
       console.log('🔍 BROWSE GAMES DEBUG - User address being sent to getUserGames:', userAddress);
       const [openGamesRes, userGamesRes, gameInvitationsRes, activeGamesRes] = await Promise.all([
-        apiClient.getOpenGames(userAddress), // Pass userAddress to exclude their own games
+        apiClient.getOpenGames(), // Don't pass userAddress to show all open games for testing
         apiClient.getUserGames(userAddress),
         apiClient.getGameInvitations(userAddress), // Use new invitations endpoint
         apiClient.getActiveGames(userAddress)
