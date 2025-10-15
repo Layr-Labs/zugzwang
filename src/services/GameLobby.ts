@@ -280,7 +280,7 @@ export class GameLobby {
   }
 
   /**
-   * Get open games (CREATED state with no required opponent, excluding games created by the requesting user)
+   * Get open games (WAITING state with no required opponent, excluding games created by the requesting user)
    */
   public getOpenGames(excludeUserAddress?: string): Game[] {
     console.log('🔍 [GAME_LOBBY] getOpenGames called with excludeUserAddress:', excludeUserAddress);
@@ -288,8 +288,8 @@ export class GameLobby {
     console.log('🔍 [GAME_LOBBY] Total games in lobby:', allGames.length);
     
     const openGames = allGames.filter(
-      game => game.state === GameState.CREATED && 
-              game.opponent === null &&
+      game => game.state === GameState.WAITING && 
+              (game.opponent === null || game.opponent === undefined) &&
               (!excludeUserAddress || game.owner.toLowerCase() !== excludeUserAddress.toLowerCase())
     );
     
@@ -350,6 +350,19 @@ export class GameLobby {
    */
   public getChessGameState(gameId: string): any | null {
     const game = this.games.get(gameId);
+    
+    if (!game) {
+      return null;
+    }
+    
+    // If game is STARTED but has no chess state, initialize it
+    if (game.state === GameState.STARTED && !game.chessState) {
+      const { ChessEngine } = require('./ChessEngine');
+      const chessEngine = ChessEngine.getInstance();
+      game.chessState = chessEngine.createInitialPosition();
+      console.log('🎮 [GAME_LOBBY] Initialized chess state for game:', gameId);
+    }
+    
     return game?.chessState || null;
   }
 

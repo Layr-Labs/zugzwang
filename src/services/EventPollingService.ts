@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 import { BlockchainService } from './BlockchainService';
 import { GameLobby } from './GameLobby';
-import { NetworkType } from '../types/Game';
+import { NetworkType, GameState } from '../types/Game';
 import fs from 'fs';
 import path from 'path';
 
@@ -13,6 +13,7 @@ interface ChessEscrowMetadata {
 
 interface GameCreatedEvent {
   gameId: string;
+  gameIdHash: string;
   creator: string;
   opponent: string;
   wagerAmount: bigint;
@@ -109,16 +110,30 @@ export class EventPollingService {
 
       // Get GameCreated events
       const gameCreatedFilter = this.contract.filters.GameCreated();
-      const events = await this.contract.queryFilter(
+      const gameCreatedEvents = await this.contract.queryFilter(
         gameCreatedFilter,
         this.lastProcessedBlock + 1,
         currentBlock
       );
 
-      console.log(`📋 [EVENT_POLLING] Found ${events.length} GameCreated events`);
+      console.log(`📋 [EVENT_POLLING] Found ${gameCreatedEvents.length} GameCreated events`);
 
-      for (const event of events) {
+      for (const event of gameCreatedEvents) {
         await this.processGameCreatedEvent(event);
+      }
+
+      // Get GameJoined events
+      const gameJoinedFilter = this.contract.filters.GameJoined();
+      const gameJoinedEvents = await this.contract.queryFilter(
+        gameJoinedFilter,
+        this.lastProcessedBlock + 1,
+        currentBlock
+      );
+
+      console.log(`📋 [EVENT_POLLING] Found ${gameJoinedEvents.length} GameJoined events`);
+
+      for (const event of gameJoinedEvents) {
+        await this.processGameJoinedEvent(event);
       }
 
       this.lastProcessedBlock = currentBlock;
@@ -132,6 +147,7 @@ export class EventPollingService {
     try {
       const gameCreatedEvent: GameCreatedEvent = {
         gameId: event.args.gameId,
+        gameIdHash: event.args.gameIdHash,
         creator: event.args.creator,
         opponent: event.args.opponent,
         wagerAmount: event.args.wagerAmount,
@@ -155,7 +171,7 @@ export class EventPollingService {
         wagerAmount: gameCreatedEvent.wagerAmount.toString(),
         networkType: NetworkType.EVM,
         chainId: this.chainId,
-        status: gameCreatedEvent.opponent === ethers.ZeroAddress ? 'created' : 'waiting', // 'created' for open games, 'waiting' for specific opponent
+        status: 'waiting', // All games start as 'waiting' - open games are waiting for any opponent
         createdAt: new Date(),
         escrow: {
           contractAddress: this.contractAddress,
@@ -168,6 +184,42 @@ export class EventPollingService {
 
     } catch (error) {
       console.error('❌ [EVENT_POLLING] Error processing GameCreated event:', error);
+    }
+  }
+
+  private async processGameJoinedEvent(event: any): Promise<void> {
+    try {
+      const gameJoinedEvent = {
+        gameId: event.args.gameId,
+        gameIdHash: event.args.gameIdHash,
+        joiner: event.args.joiner,
+        wagerAmount: event.args.wagerAmount,
+        blockNumber: event.blockNumber,
+        transactionHash: event.transactionHash
+      };
+
+      console.log(`🎮 [EVENT_POLLING] Processing GameJoined event:`, {
+        gameId: gameJoinedEvent.gameId,
+        joiner: gameJoinedEvent.joiner,
+        wagerAmount: ethers.formatEther(gameJoinedEvent.wagerAmount),
+        blockNumber: gameJoinedEvent.blockNumber
+      });
+
+      // Update game state to STARTED
+      const game = this.gameLobby.getGame(gameJoinedEvent.gameId);
+      if (game) {
+        // Update opponent and state
+        game.opponent = gameJoinedEvent.joiner;
+        game.state = GameState.STARTED;
+        game.startedAt = new Date();
+        
+        console.log(`✅ [EVENT_POLLING] Game ${game.id} updated to STARTED state with opponent ${gameJoinedEvent.joiner}`);
+      } else {
+        console.warn(`⚠️ [EVENT_POLLING] Game ${gameJoinedEvent.gameId} not found in lobby for GameJoined event`);
+      }
+
+    } catch (error) {
+      console.error('❌ [EVENT_POLLING] Error processing GameJoined event:', error);
     }
   }
 

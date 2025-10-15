@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { useGameState } from '../state/GameStateManager';
 import { useApiClient } from '../services/api';
+import { useEscrowContract } from '../services/escrowContract';
 import { Game } from '../types/Game';
 import { getChainName } from '../config/chains';
 
@@ -16,6 +17,7 @@ export const BrowseGamesView: React.FC = () => {
   const { user } = usePrivy();
   const { state, dispatch } = useGameState();
   const apiClient = useApiClient();
+  const escrowContract = useEscrowContract();
 
   // Extract wallet address from user's linked accounts
   const walletAccount = user?.linkedAccounts?.find(
@@ -93,21 +95,41 @@ export const BrowseGamesView: React.FC = () => {
     }
   };
 
-  const handleJoinGame = async (gameId: string) => {
+  const handleJoinGame = async (gameId: string, wagerAmount: string) => {
     try {
       setLoading(true);
       setError(null);
-      const response = await apiClient.joinGame(gameId);
       
-      if (response.success) {
+      // Use escrow contract to join game
+      const result = await escrowContract.joinGame(gameId, wagerAmount);
+      
+      if (result.success) {
+        console.log('✅ [JOIN_GAME] Game joined successfully:', {
+          gameId,
+          transactionHash: result.transactionHash
+        });
+        
         // Refresh games after joining
         await fetchAllGames();
       } else {
-        throw new Error(response.error || 'Failed to join game');
+        throw new Error(result.error || 'Failed to join game');
       }
     } catch (err) {
-      console.error('Failed to join game:', err);
-      setError(err instanceof Error ? err.message : 'Failed to join game');
+      console.error('❌ [JOIN_GAME] Failed to join game:', err);
+      
+      // Handle different types of errors with better user messages
+      let errorMessage = 'Failed to join game';
+      if (err instanceof Error) {
+        if (err.message.includes('insufficient funds')) {
+          errorMessage = 'Insufficient funds for wager amount';
+        } else if (err.message.includes('user rejected')) {
+          errorMessage = 'Transaction was rejected by user';
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -168,7 +190,7 @@ export const BrowseGamesView: React.FC = () => {
       console.log('🔍 BROWSE GAMES DEBUG - Starting parallel fetch...');
       console.log('🔍 BROWSE GAMES DEBUG - User address being sent to getUserGames:', userAddress);
       const [openGamesRes, userGamesRes, gameInvitationsRes, activeGamesRes] = await Promise.all([
-        apiClient.getOpenGames(), // Don't pass userAddress to show all open games for testing
+        apiClient.getOpenGames(userAddress), // Pass userAddress to exclude owner's games
         apiClient.getUserGames(userAddress),
         apiClient.getGameInvitations(userAddress), // Use new invitations endpoint
         apiClient.getActiveGames(userAddress)
@@ -376,7 +398,7 @@ export const BrowseGamesView: React.FC = () => {
                       )}
                     </div>
                     <button
-                      onClick={() => handleJoinGame(game.id)}
+                      onClick={() => handleJoinGame(game.id, game.wager)}
                       disabled={loading}
                       className={`px-4 py-2 rounded transition-colors ${
                         loading

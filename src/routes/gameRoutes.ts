@@ -8,48 +8,8 @@ import { authenticateUser, validateAddressOwnership, AuthenticatedRequest, signT
 const router = Router();
 const gameLobby = GameLobby.getInstance();
 
-// Note: Create game functionality moved to frontend using direct contract interaction
-// Games are now created via event polling from the escrow contract
-
-// Join an existing game
-router.post('/join', authenticateUser, (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const { gameId } = req.body;
-    const opponent = req.user!.address; // Get from authenticated user
-
-    // Validate required fields
-    if (!gameId) {
-      const response: GameApiResponse = {
-        success: false,
-        error: 'Game ID is required'
-      };
-      return res.status(400).json(response);
-    }
-
-    const game = gameLobby.joinGame(gameId, opponent);
-    
-    if (!game) {
-      const response: GameApiResponse = {
-        success: false,
-        error: 'Game not found or cannot be joined'
-      };
-      return res.status(404).json(response);
-    }
-
-    const response: GameApiResponse = {
-      success: true,
-      data: serializeGame(game)
-    };
-    
-    res.json(response);
-  } catch (error) {
-    const response: GameApiResponse = {
-      success: false,
-      error: 'Internal server error'
-    };
-    res.status(500).json(response);
-  }
-});
+// Note: Create game and join game functionality moved to frontend using direct contract interaction
+// Games are now created and joined via event polling from the escrow contract
 
 // Accept a game invitation
 router.post('/accept-invitation', authenticateUser, (req: AuthenticatedRequest, res: Response) => {
@@ -354,18 +314,9 @@ router.get('/:gameId', (req: Request, res: Response) => {
 });
 
 // Get chess game state
-router.get('/:gameId/chess', authenticateUser, (req: AuthenticatedRequest, res: Response) => {
+router.get('/:gameId/chess', (req: Request, res: Response) => {
   try {
     const { gameId } = req.params;
-    const userAddress = req.user?.address;
-
-    if (!userAddress) {
-      const response: GameApiResponse = {
-        success: false,
-        error: 'User address not found'
-      };
-      return res.status(401).json(response);
-    }
 
     const chessState = gameLobby.getChessGameState(gameId);
     

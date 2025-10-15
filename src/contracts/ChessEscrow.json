@@ -292,6 +292,12 @@
     "inputs": [
       {
         "name": "gameId",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "gameIdHash",
         "type": "bytes32",
         "indexed": true,
         "internalType": "bytes32"
@@ -317,6 +323,12 @@
     "inputs": [
       {
         "name": "gameId",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "gameIdHash",
         "type": "bytes32",
         "indexed": true,
         "internalType": "bytes32"

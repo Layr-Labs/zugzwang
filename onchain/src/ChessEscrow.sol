@@ -10,8 +10,8 @@ import "forge-std/console.sol";
  */
 contract ChessEscrow {
     // Events
-    event GameCreated(bytes32 indexed gameId, address indexed creator, uint256 wagerAmount);
-    event GameJoined(bytes32 indexed gameId, address indexed joiner, uint256 wagerAmount);
+    event GameCreated(string gameId, bytes32 indexed gameIdHash, address indexed creator, uint256 wagerAmount);
+    event GameJoined(string gameId, bytes32 indexed gameIdHash, address indexed joiner, uint256 wagerAmount);
     event GameSettled(bytes32 indexed gameId, address indexed winner, uint256 totalWinnings);
     event SettlerUpdated(address indexed oldSettler, address indexed newSettler);
 
@@ -84,7 +84,7 @@ contract ChessEscrow {
             createdAt: block.timestamp
         });
 
-        emit GameCreated(keccak256(bytes(_gameId)), msg.sender, msg.value);
+        emit GameCreated(_gameId, keccak256(bytes(_gameId)), msg.sender, msg.value);
     }
 
     /**
@@ -107,7 +107,7 @@ contract ChessEscrow {
         game.opponent = msg.sender;
         game.opponentPaid = true;
 
-        emit GameJoined(keccak256(bytes(_gameId)), msg.sender, msg.value);
+        emit GameJoined(_gameId, keccak256(bytes(_gameId)), msg.sender, msg.value);
     }
 
     /**

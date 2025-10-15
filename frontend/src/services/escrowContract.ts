@@ -78,7 +78,7 @@ export const useEscrowContract = (): EscrowContractService => {
         data: data,
         value: wagerAmountWei.toHexString(),
         gasLimit: '0x30d40', // 200000 in hex
-        chainId: contractMetadata.chainId // Add chain ID to ensure correct network
+        chainId: contractMetadata.chainId // Base Sepolia chain ID (84532)
       };
 
       // Sign and send transaction
@@ -130,8 +130,8 @@ export const useEscrowContract = (): EscrowContractService => {
         };
       }
 
-      // Convert wager amount to wei
-      const wagerAmountWei = ethers.utils.parseEther(wagerAmount);
+      // wagerAmount is already in Wei format (as string), convert to BigNumber
+      const wagerAmountWei = ethers.BigNumber.from(wagerAmount);
 
       console.log('🎮 [ESCROW_CONTRACT] Joining game:', {
         gameId,
@@ -153,7 +153,7 @@ export const useEscrowContract = (): EscrowContractService => {
         data: data,
         value: wagerAmountWei.toHexString(),
         gasLimit: '0x30d40', // 200000 in hex
-        chainId: contractMetadata.chainId // Add chain ID to ensure correct network
+        chainId: contractMetadata.chainId // Base Sepolia chain ID (84532)
       };
 
       // Sign and send transaction

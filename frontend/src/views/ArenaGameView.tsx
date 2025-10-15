@@ -395,9 +395,12 @@ export const ArenaGameView: React.FC = () => {
     try {
       const wagerBigInt = BigInt(wager);
       const ethAmount = wagerBigInt / BigInt(1e18);
-      return `${ethAmount} ETH`;
-    } catch {
-      return '0 ETH';
+      const weiRemainder = wagerBigInt % BigInt(1e18);
+      const decimalPart = weiRemainder.toString().padStart(18, '0').slice(0, 4);
+      return `${ethAmount}.${decimalPart} ETH`;
+    } catch (error) {
+      console.error('Error formatting wager:', error);
+      return 'Invalid wager';
     }
   };
 
@@ -511,6 +514,15 @@ export const ArenaGameView: React.FC = () => {
               <h3 className="text-lg font-semibold text-gray-700">Game Status</h3>
               {error && (
                 <p className="text-red-600 text-sm mt-1">{error}</p>
+              )}
+              {state.type === 'ARENA_GAME' && state.wagerAmount && (
+                <div className="mt-2">
+                  <p className="text-gray-600">
+                    Wager: <span className="font-semibold text-blue-600">
+                      {formatWager(state.wagerAmount)}
+                    </span>
+                  </p>
+                </div>
               )}
               {gameState && (
                 <div className="mt-2">

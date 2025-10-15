@@ -36,7 +36,7 @@ if [ -f "out/ChessEscrow.sol/ChessEscrow.json" ]; then
     echo "✅ ABI copied to dist: ../dist/contracts/ChessEscrow.json"
     
     # Use the deployed contract address (hardcoded for now)
-    CONTRACT_ADDRESS="0xEbFC063d8e19C90Cd4264b245FB4884CB7F6D60b"
+    CONTRACT_ADDRESS="0xA0c2B9335491CD0DDdF5F1daB469709fCC259a5a"
     echo "📝 Contract Address: $CONTRACT_ADDRESS"
     
     # Create a metadata file for easy access
