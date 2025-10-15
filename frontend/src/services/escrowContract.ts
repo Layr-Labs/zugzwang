@@ -58,7 +58,9 @@ export const useEscrowContract = (): EscrowContractService => {
         gameId,
         opponent: opponentAddress,
         wagerAmount: wagerAmountWei.toString(),
-        contractAddress: contractMetadata.address
+        contractAddress: contractMetadata.address,
+        chainId: contractMetadata.chainId,
+        network: 'Base Sepolia'
       });
 
       // Create contract interface for encoding
@@ -75,7 +77,8 @@ export const useEscrowContract = (): EscrowContractService => {
         to: contractMetadata.address,
         data: data,
         value: wagerAmountWei.toHexString(),
-        gasLimit: '200000' // Estimated gas limit
+        gasLimit: '200000', // Estimated gas limit
+        chainId: contractMetadata.chainId // Add chain ID to ensure correct network
       };
 
       // Sign and send transaction
@@ -133,7 +136,9 @@ export const useEscrowContract = (): EscrowContractService => {
       console.log('🎮 [ESCROW_CONTRACT] Joining game:', {
         gameId,
         wagerAmount: wagerAmountWei.toString(),
-        contractAddress: contractMetadata.address
+        contractAddress: contractMetadata.address,
+        chainId: contractMetadata.chainId,
+        network: 'Base Sepolia'
       });
 
       // Create contract interface for encoding
@@ -147,7 +152,8 @@ export const useEscrowContract = (): EscrowContractService => {
         to: contractMetadata.address,
         data: data,
         value: wagerAmountWei.toHexString(),
-        gasLimit: '200000' // Estimated gas limit
+        gasLimit: '200000', // Estimated gas limit
+        chainId: contractMetadata.chainId // Add chain ID to ensure correct network
       };
 
       // Sign and send transaction
