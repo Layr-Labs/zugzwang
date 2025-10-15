@@ -155,7 +155,7 @@ export class EventPollingService {
         wagerAmount: gameCreatedEvent.wagerAmount.toString(),
         networkType: NetworkType.EVM,
         chainId: this.chainId,
-        status: 'waiting',
+        status: gameCreatedEvent.opponent === ethers.ZeroAddress ? 'created' : 'waiting', // 'created' for open games, 'waiting' for specific opponent
         createdAt: new Date(),
         escrow: {
           contractAddress: this.contractAddress,
