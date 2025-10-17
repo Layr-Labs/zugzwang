@@ -72,12 +72,43 @@ export const useEscrowContract = (): EscrowContractService => {
         opponentAddress
       ]);
 
-      // Prepare the transaction
+      // Create a provider for gas estimation
+      const provider = new ethers.providers.JsonRpcProvider(
+        contractMetadata.network === 'base-sepolia' 
+          ? 'https://base-sepolia-rpc.publicnode.com' 
+          : 'https://ethereum-sepolia-rpc.publicnode.com'
+      );
+
+      // Estimate gas dynamically
+      let gasEstimate;
+      try {
+        gasEstimate = await provider.estimateGas({
+          to: contractMetadata.address,
+          data: data,
+          value: wagerAmountWei.toHexString(),
+          from: user.wallet.address
+        });
+      } catch (gasError) {
+        console.warn('⚠️ [ESCROW_CONTRACT] Gas estimation failed, using fallback:', gasError);
+        // Fallback to a reasonable gas limit if estimation fails
+        gasEstimate = ethers.BigNumber.from('300000'); // 300k gas fallback
+      }
+
+      // Add 20% buffer to gas estimate for safety
+      const gasLimit = gasEstimate.mul(120).div(100);
+
+      console.log('⛽ [ESCROW_CONTRACT] Gas estimation:', {
+        estimated: gasEstimate.toString(),
+        withBuffer: gasLimit.toString(),
+        bufferPercent: '20%'
+      });
+
+      // Prepare the transaction with dynamic gas estimation
       const tx = {
         to: contractMetadata.address,
         data: data,
         value: wagerAmountWei.toHexString(),
-        gasLimit: '0x30d40', // 200000 in hex
+        gasLimit: gasLimit.toHexString(),
         chainId: contractMetadata.chainId // Base Sepolia chain ID (84532)
       };
 
@@ -102,6 +133,8 @@ export const useEscrowContract = (): EscrowContractService => {
           errorMessage = 'Insufficient funds for wager amount';
         } else if (error.message.includes('user rejected')) {
           errorMessage = 'Transaction was rejected by user';
+        } else if (error.message.includes('out of gas')) {
+          errorMessage = 'Transaction failed due to insufficient gas. Please try again.';
         } else {
           errorMessage = error.message;
         }
@@ -147,12 +180,43 @@ export const useEscrowContract = (): EscrowContractService => {
       // Encode the function call
       const data = contractInterface.encodeFunctionData('joinGame', [gameId]);
 
-      // Prepare the transaction
+      // Create a provider for gas estimation
+      const provider = new ethers.providers.JsonRpcProvider(
+        contractMetadata.network === 'base-sepolia' 
+          ? 'https://base-sepolia-rpc.publicnode.com' 
+          : 'https://ethereum-sepolia-rpc.publicnode.com'
+      );
+
+      // Estimate gas dynamically
+      let gasEstimate;
+      try {
+        gasEstimate = await provider.estimateGas({
+          to: contractMetadata.address,
+          data: data,
+          value: wagerAmountWei.toHexString(),
+          from: user.wallet.address
+        });
+      } catch (gasError) {
+        console.warn('⚠️ [ESCROW_CONTRACT] Gas estimation failed, using fallback:', gasError);
+        // Fallback to a reasonable gas limit if estimation fails
+        gasEstimate = ethers.BigNumber.from('200000'); // 200k gas fallback for join
+      }
+
+      // Add 20% buffer to gas estimate for safety
+      const gasLimit = gasEstimate.mul(120).div(100);
+
+      console.log('⛽ [ESCROW_CONTRACT] Gas estimation:', {
+        estimated: gasEstimate.toString(),
+        withBuffer: gasLimit.toString(),
+        bufferPercent: '20%'
+      });
+
+      // Prepare the transaction with dynamic gas estimation
       const tx = {
         to: contractMetadata.address,
         data: data,
         value: wagerAmountWei.toHexString(),
-        gasLimit: '0x30d40', // 200000 in hex
+        gasLimit: gasLimit.toHexString(),
         chainId: contractMetadata.chainId // Base Sepolia chain ID (84532)
       };
 
@@ -177,6 +241,8 @@ export const useEscrowContract = (): EscrowContractService => {
           errorMessage = 'Insufficient funds for wager amount';
         } else if (error.message.includes('user rejected')) {
           errorMessage = 'Transaction was rejected by user';
+        } else if (error.message.includes('out of gas')) {
+          errorMessage = 'Transaction failed due to insufficient gas. Please try again.';
         } else {
           errorMessage = error.message;
         }
