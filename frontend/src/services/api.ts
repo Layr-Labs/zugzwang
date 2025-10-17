@@ -80,15 +80,6 @@ export const useApiClient = () => {
       return makeRequest(`/api/games/invitations?user=${userAddress}`);
     },
 
-    acceptGameInvitation: async (gameId: string, wagerAmount: string) => {
-      return makeRequest('/api/games/accept-invitation', {
-        method: 'POST',
-        body: JSON.stringify({
-          gameId,
-          wagerAmount,
-        }),
-      });
-    },
 
     joinGame: async (gameId: string) => {
       return makeRequest('/api/games/join', {

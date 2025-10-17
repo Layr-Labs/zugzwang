@@ -142,57 +142,6 @@ export class GameLobby {
     return game;
   }
 
-  /**
-   * Accept a game invitation (WAITING state)
-   */
-  public acceptGameInvitation(gameId: string, opponent: string, opponentWager: string): Game | null {
-    const game = this.games.get(gameId);
-    
-    if (!game) {
-      console.log('❌ [GAME_LOBBY] Game not found for invitation acceptance:', gameId);
-      return null;
-    }
-
-    if (game.state !== GameState.WAITING) {
-      console.log('❌ [GAME_LOBBY] Game is not in WAITING state:', game.state);
-      return null;
-    }
-
-    if (game.opponent?.toLowerCase() !== opponent.toLowerCase()) {
-      console.log('❌ [GAME_LOBBY] Opponent address mismatch:', {
-        gameOpponent: game.opponent,
-        providedOpponent: opponent
-      });
-      return null;
-    }
-
-    // Validate that opponent wager matches owner wager
-    const opponentWagerBigInt = BigInt(opponentWager);
-    if (game.wager !== opponentWagerBigInt) {
-      console.log('❌ [GAME_LOBBY] Wager amount mismatch:', {
-        gameWager: game.wager.toString(),
-        opponentWager: opponentWager
-      });
-      return null;
-    }
-
-    console.log('✅ [GAME_LOBBY] Accepting game invitation:', {
-      gameId: gameId,
-      opponent: opponent,
-      wager: opponentWager
-    });
-
-    // Start the game
-    game.state = GameState.STARTED;
-    game.startedAt = new Date();
-
-    // Initialize chess state
-    const chessEngine = ChessEngine.getInstance();
-    game.chessState = chessEngine.createInitialPosition();
-
-    this.games.set(gameId, game);
-    return game;
-  }
 
   /**
    * Settle a game (mark as completed)

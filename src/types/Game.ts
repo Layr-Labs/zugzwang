@@ -58,10 +58,6 @@ export interface JoinGameRequest {
   gameId: string;
 }
 
-export interface AcceptGameInvitationRequest {
-  gameId: string;
-  wagerAmount: string; // Wager amount in ETH as string (will be converted to BigInt wei)
-}
 
 export interface GameApiResponse {
   success: boolean;

@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { GameLobby } from '../services/GameLobby';
 import { BlockchainService } from '../services/BlockchainService';
-import { GameApiResponse, GamesListApiResponse, serializeGame, AcceptGameInvitationRequest, NetworkType } from '../types/Game';
+import { GameApiResponse, GamesListApiResponse, serializeGame, NetworkType } from '../types/Game';
 import { MoveRequest, MoveResponse } from '../types/Chess';
 import { authenticateUser, validateAddressOwnership, AuthenticatedRequest, signTransactionWithPrivy } from '../middleware/auth';
 
@@ -11,65 +11,6 @@ const gameLobby = GameLobby.getInstance();
 // Note: Create game and join game functionality moved to frontend using direct contract interaction
 // Games are now created and joined via event polling from the escrow contract
 
-// Accept a game invitation
-router.post('/accept-invitation', authenticateUser, (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const { gameId, wagerAmount } = req.body as AcceptGameInvitationRequest;
-    const opponent = req.user!.address; // Get from authenticated user
-
-    // Validate required fields
-    if (!gameId || !wagerAmount) {
-      const response: GameApiResponse = {
-        success: false,
-        error: 'Game ID and wager amount are required'
-      };
-      return res.status(400).json(response);
-    }
-
-    // Convert wagerAmount to BigInt (assuming it's in ETH as string)
-    const wager = BigInt(Math.floor(parseFloat(wagerAmount) * 1e18));
-
-    // Validate wager amount (minimum 0.0001 ETH)
-    const minWager = BigInt(100000000000000); // 0.0001 ETH in wei
-    if (wager < minWager) {
-      const response: GameApiResponse = {
-        success: false,
-        error: 'Wager must be at least 0.0001 ETH'
-      };
-      return res.status(400).json(response);
-    }
-
-    console.log('🎯 [ROUTE] Accepting game invitation:', {
-      gameId: gameId,
-      opponent: opponent,
-      wagerAmount: wagerAmount
-    });
-
-    const game = gameLobby.acceptGameInvitation(gameId, opponent, wager.toString());
-    
-    if (!game) {
-      const response: GameApiResponse = {
-        success: false,
-        error: 'Game not found, not in WAITING state, or invitation cannot be accepted'
-      };
-      return res.status(404).json(response);
-    }
-
-    const response: GameApiResponse = {
-      success: true,
-      data: serializeGame(game)
-    };
-    
-    res.json(response);
-  } catch (error) {
-    console.error('💥 [ROUTE] Error accepting game invitation:', error);
-    const response: GameApiResponse = {
-      success: false,
-      error: 'Internal server error'
-    };
-    res.status(500).json(response);
-  }
-});
 
 // Settle a game
 router.post('/:gameId/settle', authenticateUser, (req: AuthenticatedRequest, res: Response) => {

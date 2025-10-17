@@ -15,7 +15,7 @@ interface GameCreatedEvent {
   gameId: string;
   gameIdHash: string;
   creator: string;
-  opponent: string;
+  opponent?: string; // Optional since it's not emitted in the event
   wagerAmount: bigint;
   blockNumber: number;
   transactionHash: string;
@@ -30,7 +30,7 @@ export class EventPollingService {
   private isPolling: boolean = false;
   private pollingInterval: NodeJS.Timeout | null = null;
   private lastProcessedBlock: number = 0;
-  private readonly POLLING_INTERVAL_MS = 10000; // 10 seconds
+  private readonly POLLING_INTERVAL_MS = 2000; // 2 seconds
 
   constructor(blockchainService: BlockchainService, gameLobby: GameLobby) {
     this.blockchainService = blockchainService;
@@ -196,7 +196,7 @@ export class EventPollingService {
         gameId: event.args.gameId,
         gameIdHash: event.args.gameIdHash,
         creator: event.args.creator,
-        opponent: event.args.opponent,
+        opponent: event.args.opponent, // This will be undefined since it's not emitted
         wagerAmount: event.args.wagerAmount,
         blockNumber: event.blockNumber,
         transactionHash: event.transactionHash
@@ -205,16 +205,36 @@ export class EventPollingService {
       console.log(`🎮 [EVENT_POLLING] Processing GameCreated event:`, {
         gameId: gameCreatedEvent.gameId,
         creator: gameCreatedEvent.creator,
-        opponent: gameCreatedEvent.opponent,
         wagerAmount: ethers.formatEther(gameCreatedEvent.wagerAmount),
         blockNumber: gameCreatedEvent.blockNumber
       });
+
+      // Query the contract to get the full game details including opponent
+      let opponentAddress: string | null = null;
+      try {
+        console.log(`🔍 [EVENT_POLLING] Querying contract for game details: ${gameCreatedEvent.gameId}`);
+        const gameData = await this.contract.getGame(gameCreatedEvent.gameId);
+        opponentAddress = gameData.opponent === ethers.ZeroAddress ? null : gameData.opponent;
+        console.log(`📊 [EVENT_POLLING] Retrieved game data from contract:`, {
+          gameId: gameData.gameId,
+          creator: gameData.creator,
+          opponent: opponentAddress,
+          wagerAmount: ethers.formatEther(gameData.wagerAmount),
+          creatorPaid: gameData.creatorPaid,
+          opponentPaid: gameData.opponentPaid,
+          settled: gameData.settled
+        });
+      } catch (contractError) {
+        console.error(`❌ [EVENT_POLLING] Failed to query contract for game ${gameCreatedEvent.gameId}:`, contractError);
+        // Continue with null opponent - the game will be treated as open
+        opponentAddress = null;
+      }
 
       // Create game in the lobby
       const game = await this.gameLobby.createGameFromEvent({
         id: gameCreatedEvent.gameId,
         creator: gameCreatedEvent.creator,
-        opponent: gameCreatedEvent.opponent === ethers.ZeroAddress ? null : gameCreatedEvent.opponent,
+        opponent: opponentAddress,
         wagerAmount: gameCreatedEvent.wagerAmount.toString(),
         networkType: NetworkType.EVM,
         chainId: this.chainId,

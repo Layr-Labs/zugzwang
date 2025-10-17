@@ -141,34 +141,38 @@ export const BrowseGamesView: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      console.log('🎯 [FRONTEND] Accepting game invitation:', { gameId, wagerAmount });
+      console.log('🎯 [FRONTEND] Accepting game invitation via joinGame:', { gameId, wagerAmount });
       
-      // Convert wager from wei to ETH for the API
-      const wagerBigInt = BigInt(wagerAmount);
-      const wagerInEth = Number(wagerBigInt) / 1e18;
+      // Use the same joinGame flow as regular join
+      const result = await escrowContract.joinGame(gameId, wagerAmount);
       
-      const response = await apiClient.acceptGameInvitation(gameId, wagerInEth.toString());
-      
-      console.log('🎯 [FRONTEND] Accept invitation response:', response);
-      
-      if (response.success && response.data) {
-        // Navigate to the game
-        dispatch({
-          type: 'NAVIGATE_TO_ARENA_GAME',
-          gameId: response.data.id,
-          userAddress,
-          opponentAddress: response.data.owner, // The owner is now the opponent
-          wagerAmount: response.data.wager,
-          networkType: response.data.networkType,
-          chainId: response.data.chainId,
-          isOwner: false
+      if (result.success) {
+        console.log('✅ [ACCEPT_INVITATION] Game invitation accepted successfully:', {
+          gameId,
+          transactionHash: result.transactionHash
         });
+        
+        // Refresh games after accepting invitation
+        await fetchAllGames();
       } else {
-        throw new Error(response.error || 'Failed to accept invitation');
+        throw new Error(result.error || 'Failed to accept invitation');
       }
     } catch (err) {
-      console.error('Failed to accept invitation:', err);
-      setError(err instanceof Error ? err.message : 'Failed to accept invitation');
+      console.error('❌ [ACCEPT_INVITATION] Failed to accept invitation:', err);
+      
+      // Handle different types of errors with better user messages
+      let errorMessage = 'Failed to accept invitation';
+      if (err instanceof Error) {
+        if (err.message.includes('insufficient funds')) {
+          errorMessage = 'Insufficient funds for wager amount';
+        } else if (err.message.includes('user rejected')) {
+          errorMessage = 'Transaction was rejected by user';
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
