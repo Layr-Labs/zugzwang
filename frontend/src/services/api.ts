@@ -1,9 +1,15 @@
 import { usePrivy } from '@privy-io/react-auth';
-import { getApiUrl } from '../config/environment';
+import { useEnvironment } from '../contexts/EnvironmentContext';
 import { useMemo } from 'react';
 
 export const useApiClient = () => {
   const { getAccessToken } = usePrivy();
+  const { backendConfig } = useEnvironment();
+
+  const getApiUrl = (endpoint: string = ''): string => {
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    return `${backendConfig.fullUrl}${cleanEndpoint}`;
+  };
 
   const makeRequest = async (endpoint: string, options: RequestInit = {}) => {
     const token = await getAccessToken();

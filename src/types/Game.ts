@@ -29,6 +29,7 @@ export interface Game {
     contractAddress: string;
     transactionHash: string;
     blockNumber: number;
+    settlementTransactionHash?: string; // Transaction hash for game settlement
   };
 }
 

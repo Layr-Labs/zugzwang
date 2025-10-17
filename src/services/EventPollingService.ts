@@ -36,15 +36,62 @@ export class EventPollingService {
     this.blockchainService = blockchainService;
     this.gameLobby = gameLobby;
     
-    // Load contract metadata
-    const metadataPath = path.join(__dirname, '../contracts/ChessEscrowMetadata.json');
-    const metadata: ChessEscrowMetadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
+    // Load contract metadata - try multiple paths for Docker compatibility
+    const metadataPaths = [
+      path.join(__dirname, '../contracts/ChessEscrowMetadata.json'), // dist/contracts/
+      path.join(__dirname, '../../src/contracts/ChessEscrowMetadata.json'), // src/contracts/ from dist/
+      path.join(process.cwd(), 'src/contracts/ChessEscrowMetadata.json'), // src/contracts/ from project root
+    ];
+    
+    let metadata: ChessEscrowMetadata;
+    let metadataPath: string;
+    
+    for (const testPath of metadataPaths) {
+      try {
+        if (fs.existsSync(testPath)) {
+          metadata = JSON.parse(fs.readFileSync(testPath, 'utf8'));
+          metadataPath = testPath;
+          console.log(`📁 [EVENT_POLLING] Loaded metadata from: ${testPath}`);
+          break;
+        }
+      } catch (error) {
+        // Continue to next path
+      }
+    }
+    
+    if (!metadata!) {
+      throw new Error(`Could not find ChessEscrowMetadata.json in any of these paths: ${metadataPaths.join(', ')}`);
+    }
+    
     this.contractAddress = metadata.address;
     this.chainId = metadata.chainId;
 
-    // Load ABI
-    const abiPath = path.join(__dirname, '../contracts/ChessEscrow.json');
-    const abi = JSON.parse(fs.readFileSync(abiPath, 'utf8'));
+    // Load ABI - try multiple paths for Docker compatibility
+    const abiPaths = [
+      path.join(__dirname, '../contracts/ChessEscrow.json'), // dist/contracts/
+      path.join(__dirname, '../../src/contracts/ChessEscrow.json'), // src/contracts/ from dist/
+      path.join(process.cwd(), 'src/contracts/ChessEscrow.json'), // src/contracts/ from project root
+    ];
+    
+    let abi: any;
+    let abiPath: string;
+    
+    for (const testPath of abiPaths) {
+      try {
+        if (fs.existsSync(testPath)) {
+          abi = JSON.parse(fs.readFileSync(testPath, 'utf8'));
+          abiPath = testPath;
+          console.log(`📁 [EVENT_POLLING] Loaded ABI from: ${testPath}`);
+          break;
+        }
+      } catch (error) {
+        // Continue to next path
+      }
+    }
+    
+    if (!abi!) {
+      throw new Error(`Could not find ChessEscrow.json in any of these paths: ${abiPaths.join(', ')}`);
+    }
 
     // Create contract instance
     const provider = this.blockchainService.getProvider(this.chainId);

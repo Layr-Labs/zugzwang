@@ -1,4 +1,4 @@
-export type Environment = 'local' | 'development' | 'staging' | 'production';
+export type Environment = 'local' | 'testnet' | 'development' | 'staging' | 'production';
 
 export interface BackendConfig {
   baseUrl: string;
@@ -21,6 +21,11 @@ const configs: Record<Environment, BackendConfig> = {
     port: 8000,
     fullUrl: 'http://localhost:8000'
   },
+  testnet: {
+    baseUrl: 'http://34.61.95.164',
+    port: 8000,
+    fullUrl: 'http://34.61.95.164:8000'
+  },
   development: {
     baseUrl: 'https://dev-api.zugzwang.com',
     port: 443,
@@ -42,7 +47,7 @@ const configs: Record<Environment, BackendConfig> = {
 const getEnvironment = (): Environment => {
   const env = process.env.REACT_APP_ZUGZWANG_ENVIRONMENT?.toLowerCase();
   
-  if (env && ['local', 'development', 'staging', 'production'].includes(env)) {
+  if (env && ['local', 'testnet', 'development', 'staging', 'production'].includes(env)) {
     return env as Environment;
   }
   

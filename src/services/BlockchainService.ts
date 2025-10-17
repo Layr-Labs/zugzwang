@@ -1,4 +1,6 @@
 import { ethers } from 'ethers';
+import fs from 'fs';
+import path from 'path';
 
 export class BlockchainService {
   private static instance: BlockchainService;
@@ -11,6 +13,33 @@ export class BlockchainService {
       BlockchainService.instance = new BlockchainService();
     }
     return BlockchainService.instance;
+  }
+
+  /**
+   * Load contract file (ABI or metadata) from multiple possible paths for Docker compatibility
+   * @param filename - The contract file name (e.g., 'ChessEscrow.json')
+   * @returns The parsed JSON content
+   */
+  private loadContractFile(filename: string): any {
+    const possiblePaths = [
+      path.join(__dirname, '../contracts', filename), // dist/contracts/
+      path.join(__dirname, '../../src/contracts', filename), // src/contracts/ from dist/
+      path.join(process.cwd(), 'src/contracts', filename), // src/contracts/ from project root
+    ];
+    
+    for (const testPath of possiblePaths) {
+      try {
+        if (fs.existsSync(testPath)) {
+          const content = JSON.parse(fs.readFileSync(testPath, 'utf8'));
+          console.log(`📁 [BLOCKCHAIN_SERVICE] Loaded ${filename} from: ${testPath}`);
+          return content;
+        }
+      } catch (error) {
+        // Continue to next path
+      }
+    }
+    
+    throw new Error(`Could not find ${filename} in any of these paths: ${possiblePaths.join(', ')}`);
   }
 
   private getRpcUrlForChainId(chainId: number): string {
@@ -253,6 +282,96 @@ export class BlockchainService {
     } catch (error) {
       console.error('❌ [BLOCKCHAIN_SERVICE] Error getting backend address:', error);
       throw new Error('Failed to get backend address from mnemonic');
+    }
+  }
+
+  /**
+   * Create a signer from the mnemonic for a specific chain
+   * @param chainId - The chain ID to create the signer for
+   * @returns ethers.HDNodeWallet - The wallet signer
+   */
+  public createSigner(chainId: number): ethers.HDNodeWallet {
+    try {
+      const mnemonic = process.env.MNEMONIC;
+      if (!mnemonic) {
+        throw new Error('MNEMONIC environment variable not set');
+      }
+      
+      const provider = this.getProvider(chainId);
+      const wallet = ethers.Wallet.fromPhrase(mnemonic).connect(provider);
+      
+      console.log('🔍 [BLOCKCHAIN_SERVICE] Created signer for chain:', {
+        chainId,
+        address: wallet.address
+      });
+      
+      return wallet;
+    } catch (error) {
+      console.error('❌ [BLOCKCHAIN_SERVICE] Error creating signer:', error);
+      throw new Error('Failed to create signer from mnemonic');
+    }
+  }
+
+  /**
+   * Settle a game on the escrow contract
+   * @param gameId - The game ID to settle
+   * @param winnerAddress - The address of the winner
+   * @param chainId - The chain ID to submit the transaction on
+   * @returns Promise<string> - The transaction hash
+   */
+  public async settleGame(gameId: string, winnerAddress: string, chainId: number): Promise<string> {
+    try {
+      console.log('🎯 [BLOCKCHAIN_SERVICE] Settling game:', {
+        gameId,
+        winnerAddress,
+        chainId
+      });
+
+      // Create signer
+      const signer = this.createSigner(chainId);
+      
+      // Load contract ABI and address - try multiple paths for Docker compatibility
+      const contractABI = this.loadContractFile('ChessEscrow.json');
+      const contractMetadata = this.loadContractFile('ChessEscrowMetadata.json');
+      
+      if (contractMetadata.chainId !== chainId) {
+        throw new Error(`Contract metadata chainId (${contractMetadata.chainId}) does not match requested chainId (${chainId})`);
+      }
+      
+      // Create contract instance
+      const contract = new ethers.Contract(
+        contractMetadata.address,
+        contractABI,
+        signer
+      );
+      
+      // Get current nonce
+      const nonce = await signer.getNonce();
+      console.log('🔢 [BLOCKCHAIN_SERVICE] Current nonce:', nonce);
+      
+      // Call settleGame function
+      console.log('📝 [BLOCKCHAIN_SERVICE] Calling settleGame on contract...');
+      const tx = await contract.settleGame(gameId, winnerAddress, {
+        nonce: nonce,
+        gasLimit: 500000 // Set a reasonable gas limit
+      });
+      
+      console.log('⏳ [BLOCKCHAIN_SERVICE] Transaction submitted:', tx.hash);
+      
+      // Wait for transaction confirmation
+      console.log('⏳ [BLOCKCHAIN_SERVICE] Waiting for confirmation...');
+      const receipt = await tx.wait();
+      
+      console.log('✅ [BLOCKCHAIN_SERVICE] Transaction confirmed:', {
+        hash: receipt.hash,
+        blockNumber: receipt.blockNumber,
+        gasUsed: receipt.gasUsed.toString()
+      });
+      
+      return receipt.hash;
+    } catch (error) {
+      console.error('❌ [BLOCKCHAIN_SERVICE] Error settling game:', error);
+      throw new Error(`Failed to settle game: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 }

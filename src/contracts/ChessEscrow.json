@@ -237,6 +237,19 @@
   },
   {
     "type": "function",
+    "name": "setSettler",
+    "inputs": [
+      {
+        "name": "_newSettler",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "settleGame",
     "inputs": [
       {

@@ -483,6 +483,11 @@ export class GameLobby {
           winner: result.newGameState.winner,
           gameState: game.state
         });
+
+        // Trigger escrow settlement for checkmate (not stalemate)
+        if (result.newGameState.gameStatus === 'checkmate' && result.newGameState.winner) {
+          this.settleGameOnEscrow(gameId, result.newGameState.winner, game.chainId);
+        }
       }
       
       this.games.set(gameId, game);
@@ -571,5 +576,73 @@ export class GameLobby {
       started: games.filter(g => g.state === GameState.STARTED).length,
       settled: games.filter(g => g.state === GameState.SETTLED).length
     };
+  }
+
+  /**
+   * Settle a game on the escrow contract when checkmate occurs
+   * @param gameId - The game ID to settle
+   * @param winner - The winner ('white' or 'black')
+   * @param chainId - The chain ID to submit the transaction on
+   */
+  private async settleGameOnEscrow(gameId: string, winner: 'white' | 'black', chainId?: number): Promise<void> {
+    try {
+      console.log('🎯 [GAME_LOBBY] Starting escrow settlement for game:', {
+        gameId,
+        winner,
+        chainId
+      });
+
+      if (!chainId) {
+        console.log('❌ [GAME_LOBBY] No chainId provided for escrow settlement');
+        return;
+      }
+
+      const game = this.games.get(gameId);
+      if (!game) {
+        console.log('❌ [GAME_LOBBY] Game not found for escrow settlement');
+        return;
+      }
+
+      // Determine the winner's address
+      const winnerAddress = winner === 'white' ? game.owner : game.opponent;
+      if (!winnerAddress) {
+        console.log('❌ [GAME_LOBBY] Winner address not found for escrow settlement');
+        return;
+      }
+
+      console.log('🏆 [GAME_LOBBY] Winner determined:', {
+        winner,
+        winnerAddress,
+        gameOwner: game.owner,
+        gameOpponent: game.opponent
+      });
+
+      // Import BlockchainService and settle the game
+      const { BlockchainService } = require('./BlockchainService');
+      const blockchainService = BlockchainService.getInstance();
+      
+      const transactionHash = await blockchainService.settleGame(gameId, winnerAddress, chainId);
+      
+      console.log('✅ [GAME_LOBBY] Game settled on escrow contract:', {
+        gameId,
+        winner,
+        winnerAddress,
+        transactionHash
+      });
+
+      // Update game with settlement transaction hash
+      if (!game.escrow) {
+        game.escrow = {
+          contractAddress: '',
+          transactionHash: '',
+          blockNumber: 0
+        };
+      }
+      game.escrow.settlementTransactionHash = transactionHash;
+
+    } catch (error) {
+      console.error('❌ [GAME_LOBBY] Error settling game on escrow contract:', error);
+      // Don't throw the error - we don't want to break the game flow if settlement fails
+    }
   }
 }
