@@ -43,8 +43,13 @@ const configs: Record<Environment, BackendConfig> = {
   }
 };
 
-// Get environment from process.env, default to 'local'
+// Get environment from process.env or domain detection, default to 'local'
 const getEnvironment = (): Environment => {
+  // Check if we're running on zugzwang.eigenarcade.com domain
+  if (typeof window !== 'undefined' && window.location.hostname === 'zugzwang.eigenarcade.com') {
+    return 'testnet';
+  }
+  
   const env = process.env.REACT_APP_ZUGZWANG_ENVIRONMENT?.toLowerCase();
   
   if (env && ['local', 'testnet', 'development', 'staging', 'production'].includes(env)) {
