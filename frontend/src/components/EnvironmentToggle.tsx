@@ -7,7 +7,7 @@ const EnvironmentToggle: React.FC = () => {
 
   const environments: { key: Environment; label: string; description: string }[] = [
     { key: 'local', label: 'Local', description: 'localhost:8000' },
-    { key: 'testnet', label: 'Testnet', description: '34.61.95.164:8000' }
+    { key: 'testnet', label: 'Testnet', description: 'zugzwang-api.eigenarcade.com' }
   ];
 
   const handleEnvironmentChange = (newEnv: Environment) => {

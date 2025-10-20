@@ -22,9 +22,9 @@ const configs: Record<Environment, BackendConfig> = {
     fullUrl: 'http://localhost:8000'
   },
   testnet: {
-    baseUrl: 'http://34.61.95.164',
+    baseUrl: 'https://zugzwang-api.eigenarcade.com',
     port: 8000,
-    fullUrl: 'http://34.61.95.164:8000'
+    fullUrl: 'https://zugzwang-api.eigenarcade.com:8000'
   },
   development: {
     baseUrl: 'https://dev-api.zugzwang.com',
