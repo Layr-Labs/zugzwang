@@ -12,7 +12,7 @@ export const CreateGameView: React.FC = () => {
   const userAddress = user?.wallet?.address || (state.type === 'CREATE_GAME' ? state.userAddress : undefined);
   
   // Network selection state
-  const [selectedNetwork, setSelectedNetwork] = useState<string>('sepolia'); // Default to Sepolia
+  const [selectedNetwork, setSelectedNetwork] = useState<string>('base-sepolia'); // Default to Base Sepolia
 
   const handleWagerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     dispatch({ type: 'UPDATE_WAGER_AMOUNT', wagerAmount: e.target.value });

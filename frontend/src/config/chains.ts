@@ -21,18 +21,6 @@ export interface NetworkOption {
 
 export const SUPPORTED_CHAINS: ChainConfig[] = [
   {
-    id: 11155111, // Sepolia testnet
-    name: 'Ethereum Sepolia',
-    networkType: 'EVM',
-    rpcUrl: 'https://ethereum-sepolia-rpc.publicnode.com',
-    blockExplorerUrl: 'https://sepolia.etherscan.io',
-    nativeCurrency: {
-      name: 'Ethereum',
-      symbol: 'ETH',
-      decimals: 18
-    }
-  },
-  {
     id: 84532, // Base Sepolia testnet
     name: 'Base Sepolia',
     networkType: 'EVM',
@@ -47,13 +35,6 @@ export const SUPPORTED_CHAINS: ChainConfig[] = [
 ];
 
 export const NETWORK_OPTIONS: NetworkOption[] = [
-  {
-    value: 'sepolia',
-    label: 'Ethereum Sepolia',
-    networkType: 'EVM',
-    chainId: 11155111,
-    enabled: true
-  },
   {
     value: 'base-sepolia',
     label: 'Base Sepolia',
