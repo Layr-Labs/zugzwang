@@ -42,8 +42,8 @@ export const EnvironmentProvider: React.FC<EnvironmentProviderProps> = ({ childr
     },
     testnet: {
       baseUrl: 'https://zugzwang-api.eigenarcade.com',
-      port: 8000,
-      fullUrl: 'https://zugzwang-api.eigenarcade.com:8000'
+      port: 443,
+      fullUrl: 'https://zugzwang-api.eigenarcade.com'
     },
     development: {
       baseUrl: 'https://dev-api.zugzwang.com',
